@@ -11,6 +11,7 @@ dependencies = [
   "jinja2>=3.1",
   "pydantic-settings>=2.10",
   "python-multipart>=0.0.20",
+  "tzdata>=2025.2",
   "typer>=0.16",
   "uvicorn>=0.35",
 ]

@@ -16,7 +16,10 @@ def gaslight_payload() -> dict[str, object]:
         "finish": "2026-08-17T12:00:00+00:00",
         "onsite": False,
         "format": "Jeopardy",
-        "description": "Players may participate in teams of up to five members.",
+        "description": (
+            "Players may participate in teams of up to five members. "
+            "Teams may belong to the following divisions: Secondary School, University, and Open."
+        ),
         "prizes": "Open Division: 1st: $100",
     }
 
