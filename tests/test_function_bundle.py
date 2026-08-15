@@ -15,6 +15,9 @@ def test_function_bundle_imports_from_isolated_artifact(tmp_path: Path) -> None:
     assert (bundle / "host.json").is_file()
     assert (bundle / "function_app.py").is_file()
     assert (bundle / "flagwatch" / "cloud_sync.py").is_file()
+    requirements = (bundle / "requirements.txt").read_text(encoding="utf-8")
+    for dependency in ("fastapi", "jinja2", "python-multipart", "uvicorn"):
+        assert dependency in requirements
     command = (
         "import sys; "
         f"sys.path.insert(0, {str(bundle)!r}); "
