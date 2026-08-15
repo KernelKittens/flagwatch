@@ -3,9 +3,21 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 from flagwatch.domain import Criteria, Event, EventFacts, EventView
+
+
+@dataclass(frozen=True)
+class OutboxRecord:
+    record_id: int
+    event_key: str
+    channel: str
+    payload_json: str
+    status: str
+    attempts: int
+    last_error: str | None
 
 
 class Database:
@@ -52,6 +64,18 @@ class Database:
                     singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                     version INTEGER NOT NULL,
                     data_json TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS outbox (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dedupe_key TEXT NOT NULL UNIQUE,
+                    event_key TEXT NOT NULL REFERENCES events(event_key) ON DELETE CASCADE,
+                    channel TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    last_error TEXT,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
                 """
             )
@@ -137,3 +161,88 @@ class Database:
                 (saved.version, saved.model_dump_json()),
             )
         return saved
+
+    def queue_outbox(
+        self,
+        dedupe_key: str,
+        event_key: str,
+        channel: str,
+        payload_json: str,
+    ) -> bool:
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT OR IGNORE INTO outbox (dedupe_key, event_key, channel, payload_json)
+                VALUES (?, ?, ?, ?)
+                """,
+                (dedupe_key, event_key, channel, payload_json),
+            )
+            return cursor.rowcount == 1
+
+    def count_outbox(self) -> int:
+        with self._connect() as connection:
+            row = connection.execute("SELECT COUNT(*) AS count FROM outbox").fetchone()
+        return int(row["count"])
+
+    def list_pending_outbox(self) -> list[OutboxRecord]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, event_key, channel, payload_json, status, attempts, last_error
+                FROM outbox
+                WHERE status = 'pending'
+                ORDER BY id
+                """
+            ).fetchall()
+        return [
+            OutboxRecord(
+                record_id=int(row["id"]),
+                event_key=str(row["event_key"]),
+                channel=str(row["channel"]),
+                payload_json=str(row["payload_json"]),
+                status=str(row["status"]),
+                attempts=int(row["attempts"]),
+                last_error=str(row["last_error"]) if row["last_error"] else None,
+            )
+            for row in rows
+        ]
+
+    def list_outbox(self) -> list[OutboxRecord]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, event_key, channel, payload_json, status, attempts, last_error
+                FROM outbox
+                ORDER BY id DESC
+                """
+            ).fetchall()
+        return [
+            OutboxRecord(
+                record_id=int(row["id"]),
+                event_key=str(row["event_key"]),
+                channel=str(row["channel"]),
+                payload_json=str(row["payload_json"]),
+                status=str(row["status"]),
+                attempts=int(row["attempts"]),
+                last_error=str(row["last_error"]) if row["last_error"] else None,
+            )
+            for row in rows
+        ]
+
+    def mark_outbox_sent(self, record_id: int) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                "UPDATE outbox SET status = 'sent', attempts = attempts + 1 WHERE id = ?",
+                (record_id,),
+            )
+
+    def mark_outbox_failed(self, record_id: int, error: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE outbox
+                SET attempts = attempts + 1, last_error = ?
+                WHERE id = ?
+                """,
+                (error[:500], record_id),
+            )
