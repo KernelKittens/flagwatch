@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -79,6 +79,16 @@ class Database:
                 );
                 """
             )
+
+    def backup_to(self, destination: str | Path) -> None:
+        """Write a self-contained SQLite backup, including committed WAL pages."""
+        target_path = Path(destination)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
+        with (
+            closing(sqlite3.connect(self.path)) as source,
+            closing(sqlite3.connect(target_path)) as target,
+        ):
+            source.backup(target)
 
     def upsert_event(self, event: Event) -> None:
         with self._connect() as connection:

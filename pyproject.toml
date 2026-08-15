@@ -22,6 +22,9 @@ flagwatch = "flagwatch.cli:app"
 [dependency-groups]
 dev = [
   "axe-playwright-python>=0.1.8",
+  "azure-functions>=2.2.0",
+  "azure-identity>=1.25.3",
+  "azure-storage-blob>=12.30.0",
   "httpx2>=2.10",
   "mypy>=1.17",
   "playwright>=1.54",
