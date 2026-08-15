@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import smtplib
+import ssl
 from email.message import EmailMessage
 from typing import Protocol
 
@@ -10,6 +11,7 @@ import httpx
 from pydantic import BaseModel
 
 from flagwatch.domain import Event, EventFacts, MatchResult
+from flagwatch.matching import match_event
 from flagwatch.storage import Database
 from flagwatch.time_display import duration_label, format_central_range
 
@@ -63,7 +65,7 @@ class SmtpSender:
         email["To"] = self.recipient
         email.set_content(f"{message.body}\n\n{message.url}")
         with smtplib.SMTP(self.host, self.port, timeout=10.0) as smtp:
-            smtp.starttls()
+            smtp.starttls(context=ssl.create_default_context())
             smtp.login(self.username, self.password)
             smtp.send_message(email)
 
@@ -120,7 +122,7 @@ def queue_alert(
     facts: EventFacts,
     match: MatchResult,
     criteria_version: int,
-    channel: str = "discord",
+    channel: str = "preview",
 ) -> bool:
     if not match.alert_eligible:
         return False
@@ -141,9 +143,19 @@ def deliver_pending(
     if not sending_enabled:
         return 0
     delivered = 0
+    criteria = database.get_criteria()
     for record in database.list_pending_outbox():
+        current = database.get_event(record.event_key)
+        if current is None:
+            database.mark_outbox_suppressed(record.record_id, "Event is no longer available")
+            continue
+        current_match = match_event(current.event, current.facts, criteria)
+        if not current_match.alert_eligible:
+            reason = "; ".join(current_match.rejection_reasons) or "Event no longer matches"
+            database.mark_outbox_suppressed(record.record_id, reason)
+            continue
         try:
-            sender.send(AlertMessage.model_validate_json(record.payload_json))
+            sender.send(render_alert(current.event, current.facts, current_match))
         except Exception as error:
             database.mark_outbox_failed(record.record_id, str(error))
             continue

@@ -10,4 +10,6 @@ __pycache__/
 *.db-wal
 .env
 .env.local
-artifacts/
+artifacts/*
+!artifacts/flagwatch-dashboard-1440.png
+!artifacts/flagwatch-dashboard-320.png

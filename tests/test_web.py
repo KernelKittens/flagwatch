@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from flagwatch.config import Settings
 from flagwatch.domain import AiPolicy, Event, EventFacts
 from flagwatch.storage import Database
+from flagwatch.sync import SyncReport
 from flagwatch.web import create_app
 
 
@@ -42,6 +43,10 @@ def seeded_client(tmp_path) -> tuple[TestClient, Database, Event]:
     return TestClient(create_app(settings, database)), database, event
 
 
+def csrf_token(client: TestClient) -> str:
+    return str(client.app.state.csrf_token)
+
+
 def test_dashboard_keeps_human_only_event_and_suppresses_alert(tmp_path):
     client, _database, _event = seeded_client(tmp_path)
 
@@ -74,6 +79,7 @@ def test_settings_saves_without_javascript(tmp_path):
     response = client.post(
         "/settings",
         data={
+            "csrf_token": csrf_token(client),
             "require_online": "on",
             "max_team_size": "6",
             "max_duration_hours": "72",
@@ -113,3 +119,45 @@ def test_alert_history_has_directed_empty_state(tmp_path):
 
     assert response.status_code == 200
     assert "No alert previews yet." in response.text
+
+
+def test_sync_control_runs_injected_sync_and_reports_result(tmp_path):
+    client, database, _event = seeded_client(tmp_path)
+    calls = 0
+
+    def run_sync() -> SyncReport:
+        nonlocal calls
+        calls += 1
+        return SyncReport(imported=2, analyzed=2, queued=1)
+
+    settings = Settings(database_path=database.path)
+    client = TestClient(create_app(settings, database, sync_runner=run_sync))
+
+    response = client.post(
+        "/sync",
+        data={"csrf_token": csrf_token(client)},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert calls == 1
+    assert "Imported 2 events" in response.text
+    assert "Queued 1 alert preview" in response.text
+
+
+def test_sync_control_is_unavailable_without_a_runner(tmp_path):
+    client, _database, _event = seeded_client(tmp_path)
+
+    response = client.post("/sync", data={"csrf_token": csrf_token(client)})
+
+    assert response.status_code == 503
+
+
+def test_state_changes_reject_missing_or_invalid_csrf_token(tmp_path):
+    client, database, _event = seeded_client(tmp_path)
+    settings = Settings(database_path=database.path)
+    client = TestClient(create_app(settings, database, sync_runner=lambda: SyncReport()))
+
+    assert client.post("/sync").status_code == 403
+    assert client.post("/sync", data={"csrf_token": "wrong"}).status_code == 403
+    assert client.post("/settings", data={"require_online": "on"}).status_code == 403

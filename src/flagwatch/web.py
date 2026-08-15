@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hmac
+import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -16,6 +20,7 @@ from flagwatch.ics import render_ics
 from flagwatch.matching import match_event
 from flagwatch.notifications import AlertMessage
 from flagwatch.storage import Database, OutboxRecord
+from flagwatch.sync import SyncReport
 from flagwatch.time_display import duration_label, format_central_range
 
 PACKAGE_ROOT = Path(__file__).parent
@@ -67,14 +72,27 @@ def _optional_int(value: object) -> int | None:
 
 
 def _template_context(request: Request, page_title: str) -> dict[str, object]:
-    return {"request": request, "page_title": page_title}
+    return {
+        "request": request,
+        "page_title": page_title,
+        "csrf_token": request.app.state.csrf_token,
+    }
 
 
-def create_app(settings: Settings, database: Database) -> FastAPI:
+def create_app(
+    settings: Settings,
+    database: Database,
+    sync_runner: Callable[[], SyncReport] | None = None,
+) -> FastAPI:
     app = FastAPI(title="Flagwatch", docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.database = database
+    app.state.csrf_token = secrets.token_urlsafe(32)
     app.mount("/static", StaticFiles(directory=PACKAGE_ROOT / "static"), name="static")
+
+    def require_csrf(candidate: str | None) -> None:
+        if candidate is None or not hmac.compare_digest(candidate, app.state.csrf_token):
+            raise HTTPException(status_code=403, detail="Invalid form token")
 
     @app.get("/", response_class=HTMLResponse)
     def dashboard(request: Request) -> Response:
@@ -86,9 +104,27 @@ def create_app(settings: Settings, database: Database) -> FastAPI:
                 "events": rows,
                 "candidate_count": sum(row.match.alert_eligible for row in rows),
                 "suppressed_count": sum(not row.match.alert_eligible for row in rows),
+                "sync_enabled": sync_runner is not None,
+                "sync_result": request.query_params,
             }
         )
         return templates.TemplateResponse(request, "dashboard.html", context)
+
+    @app.post("/sync")
+    def run_sync(csrf_token: Annotated[str | None, Form()] = None) -> Response:
+        require_csrf(csrf_token)
+        if sync_runner is None:
+            raise HTTPException(status_code=503, detail="Sync is not configured")
+        report = sync_runner()
+        query = urlencode(
+            {
+                "imported": report.imported,
+                "analyzed": report.analyzed,
+                "queued": report.queued,
+                "failures": len(report.failures),
+            }
+        )
+        return RedirectResponse(f"/?{query}", status_code=303)
 
     @app.get("/events/{event_key}.ics")
     def event_calendar(event_key: str) -> Response:
@@ -119,12 +155,14 @@ def create_app(settings: Settings, database: Database) -> FastAPI:
     @app.post("/settings", response_class=HTMLResponse)
     def save_settings(
         request: Request,
+        csrf_token: Annotated[str | None, Form()] = None,
         require_online: Annotated[str | None, Form()] = None,
         max_team_size: Annotated[str | None, Form()] = None,
         max_duration_hours: Annotated[str | None, Form()] = None,
         require_prize: Annotated[str | None, Form()] = None,
         allowed_schedule_modes: Annotated[list[str] | None, Form()] = None,
     ) -> Response:
+        require_csrf(csrf_token)
         try:
             criteria = Criteria(
                 require_online=require_online == "on",

@@ -12,6 +12,30 @@
   </dl>
 </section>
 
+<section class="sync-panel" aria-labelledby="sync-title">
+  <div>
+    <p class="eyebrow">Source refresh</p>
+    <h2 id="sync-title">Pull the latest event and rule data.</h2>
+    <p>Syncing can take a few minutes because Flagwatch reads each reachable official site.</p>
+  </div>
+  {% if sync_enabled %}
+  <form action="/sync" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Sync now</button>
+  </form>
+  {% else %}
+  <p class="error-text">Sync is unavailable in this process.</p>
+  {% endif %}
+</section>
+
+{% if sync_result.get("imported") %}
+<p class="notice" role="status">
+  Imported {{ sync_result.get("imported") }} events. Analyzed {{ sync_result.get("analyzed") }} rule sets.
+  Queued {{ sync_result.get("queued") }} alert preview{{ "" if sync_result.get("queued") == "1" else "s" }}.
+  {{ sync_result.get("failures") }} source fetch failure{{ "" if sync_result.get("failures") == "1" else "s" }} were preserved in the sync report.
+</p>
+{% endif %}
+
 {% if events %}
 <section class="event-board" aria-labelledby="event-board-title">
   <div class="section-heading">
@@ -53,6 +77,7 @@
         </div>
         <aside class="evidence-rail" aria-label="AI-policy evidence">
           <span class="rail-label">Policy evidence</span>
+          {% if row.view.facts.analysis_stale %}<p class="error-text">Last known evidence. The latest refresh failed, so this event cannot alert.</p>{% endif %}
           <p>{{ row.view.facts.ai_policy_reason }}</p>
           {% if row.view.facts.ai_policy_evidence %}<blockquote>{{ row.view.facts.ai_policy_evidence }}</blockquote>{% endif %}
           {% if row.view.facts.ai_policy_source %}<a href="{{ row.view.facts.ai_policy_source }}" rel="noreferrer">Official source</a>{% else %}<span>No source found</span>{% endif %}

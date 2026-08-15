@@ -9,6 +9,9 @@ def match_event(event: Event, facts: EventFacts, criteria: Criteria) -> MatchRes
     rejected: list[str] = []
     matched: list[str] = []
 
+    if facts.analysis_stale:
+        rejected.append("Rule analysis is stale")
+
     if facts.ai_policy not in ALERT_ELIGIBLE_POLICIES:
         rejected.append("AI-assisted solving is prohibited or not confirmed")
     else:

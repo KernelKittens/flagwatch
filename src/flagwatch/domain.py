@@ -65,6 +65,8 @@ class EventFacts(BaseModel):
     registration_status: str | None = None
     categories: list[str] = Field(default_factory=list)
     analyzed_at: datetime | None = None
+    analysis_stale: bool = False
+    analysis_error: str | None = None
 
 
 class Criteria(BaseModel):

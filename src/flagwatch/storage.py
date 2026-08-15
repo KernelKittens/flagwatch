@@ -258,6 +258,17 @@ class Database:
                 (record_id,),
             )
 
+    def mark_outbox_suppressed(self, record_id: int, reason: str) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                UPDATE outbox
+                SET status = 'suppressed', last_error = ?
+                WHERE id = ?
+                """,
+                (reason[:500], record_id),
+            )
+
     def mark_outbox_failed(self, record_id: int, error: str) -> None:
         with self._connect() as connection:
             connection.execute(

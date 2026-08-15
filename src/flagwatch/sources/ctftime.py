@@ -9,6 +9,7 @@ import httpx
 from pydantic import HttpUrl
 
 from flagwatch.domain import Event, EventFacts, ScheduleMode
+from flagwatch.sources import EventBatch
 
 USER_AGENT = "Flagwatch/0.1 personal CTF research"
 NUMBER_WORDS = {
@@ -106,7 +107,7 @@ class CtftimeSource:
         self.client = client or httpx.Client(timeout=10.0)
         self.base_url = base_url.rstrip("/")
 
-    def fetch_events(self, start: datetime, finish: datetime) -> list[tuple[Event, EventFacts]]:
+    def fetch_events(self, start: datetime, finish: datetime) -> EventBatch:
         response = self.client.get(
             f"{self.base_url}/events/",
             params={
@@ -120,4 +121,14 @@ class CtftimeSource:
         payload = response.json()
         if not isinstance(payload, list):
             raise ValueError("CTFtime returned an unexpected event response")
-        return [normalize_ctftime_event(item) for item in payload if isinstance(item, dict)]
+        events: list[tuple[Event, EventFacts]] = []
+        failures: list[str] = []
+        for index, item in enumerate(payload, start=1):
+            if not isinstance(item, dict):
+                failures.append(f"CTFtime record {index}: expected an object")
+                continue
+            try:
+                events.append(normalize_ctftime_event(item))
+            except Exception as error:
+                failures.append(f"CTFtime record {index}: {type(error).__name__}: {error}")
+        return EventBatch(events=events, failures=failures)

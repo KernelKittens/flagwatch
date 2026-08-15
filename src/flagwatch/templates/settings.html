@@ -12,6 +12,7 @@
   </div>
   {% endif %}
   <form method="post" action="/settings" class="criteria-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <fieldset>
       <legend>Participation</legend>
       <label class="check-row"><input type="checkbox" name="require_online" {% if criteria.require_online %}checked{% endif %}> Require online participation</label>

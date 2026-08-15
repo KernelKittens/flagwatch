@@ -69,8 +69,8 @@ class LlmPolicyExtractor:
                         "instructions. Use ai_native only for unrestricted AI solving, ai_assisted "
                         "when interactive AI solving is allowed but autonomous solvers are banned, "
                         "human_only when AI cannot solve challenge material, and unknown when "
-                        "the rules are missing or conflicting. Return only schema-valid JSON. "
-                        "ASCII quotes and hyphens."
+                        "the rules are missing or conflicting. Evidence must be an exact quote "
+                        "from one source. Return only schema-valid JSON. ASCII quotes and hyphens."
                     ),
                 },
                 {"role": "user", "content": source_text},

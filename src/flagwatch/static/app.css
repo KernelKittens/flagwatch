@@ -74,6 +74,10 @@ dd { margin: .3rem 0 0; overflow-wrap: anywhere; font-weight: 650; }
 .evidence-rail p { margin-top: 0; font-weight: 650; }
 blockquote { margin: 1rem 0; padding: .8rem 0 .8rem 1rem; border-left: 2px solid var(--line); color: var(--muted); font-size: .9rem; line-height: 1.5; }
 .empty-state { padding: 3rem; border: 1px dashed var(--line); background: var(--console); }
+.sync-panel { display: flex; align-items: center; justify-content: space-between; gap: 2rem; margin-bottom: 2rem; padding: 1.25rem; border: 1px solid var(--line); background: var(--console); }
+.sync-panel h2 { font-size: 1.35rem; }
+.sync-panel p:last-child { margin-bottom: 0; color: var(--muted); }
+.sync-panel form { flex: none; }
 
 .back-link { display: inline-block; margin-bottom: 2rem; }
 .event-page { max-width: 900px; }
@@ -116,6 +120,8 @@ input[type="number"] { width: min(100%, 16rem); min-height: 2.8rem; padding: .55
   main { padding-top: 2.2rem; }
   h1 { font-size: clamp(2.4rem, 14vw, 4rem); }
   .masthead { gap: 1.5rem; }
+  .sync-panel { align-items: stretch; flex-direction: column; gap: 1rem; }
+  .sync-panel button { width: 100%; }
   .board-counts { width: 100%; }
   .section-heading { align-items: start; flex-direction: column; }
   .event-dossier { grid-template-columns: 1fr; }

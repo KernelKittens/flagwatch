@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import ssl
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
 import httpx
+import pytest
 
-from flagwatch.domain import AiPolicy, Event, EventFacts, MatchResult
+from flagwatch.domain import AiPolicy, Criteria, Event, EventFacts, MatchResult
 from flagwatch.notifications import (
     AlertMessage,
     DiscordWebhookSender,
@@ -39,10 +41,12 @@ def test_delivery_is_disabled_by_default(tmp_path):
         online=True,
     )
     database.upsert_event(event)
+    facts = EventFacts(ai_policy=AiPolicy.AI_NATIVE, team_max=4)
+    database.save_facts(event.key, facts)
     queued = queue_alert(
         database,
         event,
-        EventFacts(ai_policy=AiPolicy.AI_NATIVE, team_max=4),
+        facts,
         MatchResult(alert_eligible=True, match_reasons=["AI is allowed"]),
         criteria_version=1,
     )
@@ -70,10 +74,12 @@ def test_failed_delivery_is_recorded_for_review(tmp_path):
         online=True,
     )
     database.upsert_event(event)
+    facts = EventFacts(ai_policy=AiPolicy.AI_NATIVE)
+    database.save_facts(event.key, facts)
     queue_alert(
         database,
         event,
-        EventFacts(ai_policy=AiPolicy.AI_NATIVE),
+        facts,
         MatchResult(alert_eligible=True),
         criteria_version=1,
     )
@@ -126,8 +132,8 @@ def test_smtp_sender_uses_tls_and_login(monkeypatch):
         def __exit__(self, *_args):
             return None
 
-        def starttls(self) -> None:
-            actions.append("tls")
+        def starttls(self, *, context: ssl.SSLContext) -> None:
+            actions.append(context)
 
         def login(self, username: str, password: str) -> None:
             actions.append((username, password))
@@ -147,7 +153,78 @@ def test_smtp_sender_uses_tls_and_login(monkeypatch):
 
     sender.send(AlertMessage(title="Test CTF", body="Starts Friday", url="https://ctf.example"))
 
-    assert "tls" in actions
+    context = next(action for action in actions if isinstance(action, ssl.SSLContext))
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
     assert ("moo", "secret") in actions
     message = next(action for action in actions if isinstance(action, EmailMessage))
     assert message["Subject"] == "Flagwatch match: Test CTF"
+
+
+@pytest.mark.parametrize("policy", [AiPolicy.HUMAN_ONLY, AiPolicy.UNKNOWN])
+def test_delivery_suppresses_preview_when_current_policy_is_not_eligible(tmp_path, policy):
+    database = Database(tmp_path / "flagwatch.db")
+    database.initialize()
+    start = datetime(2026, 9, 5, 14, tzinfo=UTC)
+    event = Event(
+        source="test",
+        source_id=f"changed-{policy.value}",
+        title="Changed Policy CTF",
+        official_url="https://ctf.example/",
+        ctftime_url="https://ctftime.org/event/10/",
+        starts_at=start,
+        finishes_at=start + timedelta(hours=24),
+        online=True,
+    )
+    eligible = EventFacts(ai_policy=AiPolicy.AI_ASSISTED)
+    database.upsert_event(event)
+    database.save_facts(event.key, eligible)
+    queue_alert(
+        database,
+        event,
+        eligible,
+        MatchResult(alert_eligible=True),
+        criteria_version=1,
+    )
+    database.save_facts(event.key, EventFacts(ai_policy=policy))
+    sender = RecordingSender()
+
+    delivered = deliver_pending(database, sender, sending_enabled=True)
+
+    assert delivered == 0
+    assert sender.messages == []
+    assert database.list_outbox()[0].status == "suppressed"
+
+
+def test_delivery_suppresses_preview_after_criteria_change(tmp_path):
+    database = Database(tmp_path / "flagwatch.db")
+    database.initialize()
+    start = datetime(2026, 9, 5, 14, tzinfo=UTC)
+    event = Event(
+        source="test",
+        source_id="criteria-change",
+        title="Criteria Change CTF",
+        official_url="https://ctf.example/",
+        ctftime_url="https://ctftime.org/event/11/",
+        starts_at=start,
+        finishes_at=start + timedelta(hours=24),
+        online=True,
+    )
+    facts = EventFacts(ai_policy=AiPolicy.AI_NATIVE, team_max=4)
+    database.upsert_event(event)
+    database.save_facts(event.key, facts)
+    queue_alert(
+        database,
+        event,
+        facts,
+        MatchResult(alert_eligible=True),
+        criteria_version=1,
+    )
+    database.save_criteria(Criteria(max_team_size=3))
+    sender = RecordingSender()
+
+    delivered = deliver_pending(database, sender, sending_enabled=True)
+
+    assert delivered == 0
+    assert sender.messages == []
+    assert database.list_outbox()[0].status == "suppressed"

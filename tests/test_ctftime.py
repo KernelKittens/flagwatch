@@ -29,9 +29,24 @@ def test_source_uses_bounded_official_events_endpoint(gaslight_payload):
     source = CtftimeSource(client=client)
     start = datetime(2026, 8, 14, tzinfo=UTC)
 
-    events = source.fetch_events(start, start + timedelta(days=90))
+    batch = source.fetch_events(start, start + timedelta(days=90))
 
-    assert len(events) == 1
+    assert len(batch.events) == 1
+    assert batch.failures == []
     assert requested[0].url.path == "/api/v1/events/"
     assert requested[0].url.params["limit"] == "100"
     assert requested[0].headers["user-agent"].startswith("Flagwatch/")
+
+
+def test_source_skips_malformed_record_and_keeps_valid_event(gaslight_payload):
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=[{"id": 999}, gaslight_payload])
+
+    source = CtftimeSource(client=httpx.Client(transport=httpx.MockTransport(handler)))
+    start = datetime(2026, 8, 14, tzinfo=UTC)
+
+    batch = source.fetch_events(start, start + timedelta(days=90))
+
+    assert [event.source_id for event, _facts in batch.events] == ["3181"]
+    assert len(batch.failures) == 1
+    assert "record 1" in batch.failures[0]

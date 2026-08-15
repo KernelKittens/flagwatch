@@ -24,6 +24,7 @@
   <section class="policy-panel" aria-labelledby="policy-title">
     <p class="eyebrow">Hard alert gate</p>
     <h2 id="policy-title">{{ row.policy_label }}</h2>
+    {% if row.view.facts.analysis_stale %}<p class="error-text">This is the last known evidence. The latest refresh failed, so Flagwatch will not send an alert.</p>{% endif %}
     <p>{{ row.view.facts.ai_policy_reason }}</p>
     {% if row.view.facts.ai_policy_evidence %}<blockquote>{{ row.view.facts.ai_policy_evidence }}</blockquote>{% endif %}
     {% if row.view.facts.ai_policy_source %}<a href="{{ row.view.facts.ai_policy_source }}" rel="noreferrer">Read the official policy</a>{% endif %}
