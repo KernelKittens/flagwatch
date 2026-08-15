@@ -167,7 +167,7 @@ try {
             --role 'Storage Blob Data Contributor' --scope $containerId -o tsv
         if (-not $assignment) { throw 'Failed to grant Flagwatch blob access.' }
     }
-    foreach ($role in @('Storage Blob Data Contributor', 'Storage Queue Data Contributor', 'Storage Table Data Contributor')) {
+    foreach ($role in @('Storage Blob Data Owner', 'Storage Queue Data Contributor', 'Storage Table Data Contributor')) {
         & az role assignment create --assignee-object-id $principalId --assignee-principal-type ServicePrincipal `
             --role $role --scope $hostStorageId --output none 2>$null
         if ($LASTEXITCODE -ne 0) {
@@ -182,6 +182,22 @@ try {
         'FLAGWATCH_STORAGE_CONTAINER=flagwatch' 'FLAGWATCH_AI_ENABLED=false' `
         'FLAGWATCH_SEND_ENABLED=false' 'FLAGWATCH_CTFTIME_LOOKAHEAD_DAYS=90' --output none
     if ($LASTEXITCODE -ne 0) { throw 'Function settings failed.' }
+
+    & az functionapp config appsettings set --resource-group $ResourceGroup --name $functionName --settings `
+        "AzureWebJobsStorage__accountName=$hostStorageName" `
+        'AzureWebJobsStorage__credential=managedidentity' --output none
+    if ($LASTEXITCODE -ne 0) { throw 'Managed-identity host storage settings failed.' }
+    & az functionapp config appsettings delete --resource-group $ResourceGroup --name $functionName `
+        --setting-names AzureWebJobsStorage --output none
+    if ($LASTEXITCODE -ne 0) { throw 'Legacy host storage setting removal failed.' }
+    $hostSettings = @(Invoke-AzJson functionapp config appsettings list `
+        --resource-group $ResourceGroup --name $functionName)
+    $hostSettingNames = @($hostSettings | ForEach-Object { $_.name })
+    if ('AzureWebJobsStorage' -in $hostSettingNames -or
+        'AzureWebJobsStorage__accountName' -notin $hostSettingNames -or
+        'AzureWebJobsStorage__credential' -notin $hostSettingNames) {
+        throw 'Managed-identity host storage verification failed.'
+    }
 
     Invoke-NativeWithRetry -FailureMessage 'Managed-identity deployment storage setup failed.' -Action {
         & az functionapp deployment config set --resource-group $ResourceGroup `
@@ -252,19 +268,6 @@ try {
         throw 'Function CORS is not restricted to the deployed calendar.'
     }
 
-    & az functionapp config appsettings set --resource-group $ResourceGroup --name $functionName --settings `
-        "AzureWebJobsStorage__accountName=$hostStorageName" 'AzureWebJobsStorage__credential=managedidentity' --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Managed-identity host storage settings failed.' }
-    & az functionapp config appsettings delete --resource-group $ResourceGroup --name $functionName `
-        --setting-names AzureWebJobsStorage --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Legacy host storage setting removal failed.' }
-    $hostSettings = @(Invoke-AzJson functionapp config appsettings list --resource-group $ResourceGroup --name $functionName)
-    $hostSettingNames = @($hostSettings | ForEach-Object { $_.name })
-    if ('AzureWebJobsStorage' -in $hostSettingNames -or
-        'AzureWebJobsStorage__accountName' -notin $hostSettingNames -or
-        'AzureWebJobsStorage__credential' -notin $hostSettingNames) {
-        throw 'Managed-identity host storage verification failed.'
-    }
     & az storage account update --resource-group $ResourceGroup --name $hostStorageName `
         --allow-shared-key-access false --output none
     if ($LASTEXITCODE -ne 0) { throw 'Host storage shared-key shutdown failed.' }
