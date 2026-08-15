@@ -5,6 +5,10 @@ import threading
 import time
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from functools import partial
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 import uvicorn
@@ -14,6 +18,8 @@ from flagwatch.domain import AiPolicy, Event, EventFacts
 from flagwatch.storage import Database
 from flagwatch.sync import SyncReport
 from flagwatch.web import create_app
+
+ROOT = Path(__file__).parents[2]
 
 
 def _bound_socket() -> socket.socket:
@@ -84,3 +90,34 @@ def live_server(tmp_path) -> Iterator[str]:
         server.should_exit = True
         thread.join(timeout=5)
         listener.close()
+
+
+class _StaticSiteHandler(SimpleHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if urlsplit(self.path).path == "/api/events":
+            payload = (ROOT / "tests" / "fixtures" / "public_snapshot.json").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        super().do_GET()
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
+@pytest.fixture()
+def static_site_server() -> Iterator[str]:
+    handler = partial(_StaticSiteHandler, directory=str(ROOT / "site"))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()

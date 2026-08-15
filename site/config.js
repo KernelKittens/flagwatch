@@ -1,0 +1,1 @@
+window.FLAGWATCH_API_BASE = window.FLAGWATCH_API_BASE || "";

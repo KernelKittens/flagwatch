@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f4f7fb">
+    <title>Flagwatch CTF Calendar</title>
+    <link rel="stylesheet" href="/app.css">
+    <script src="/config.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#calendar">Skip to calendar</a>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Flagwatch home">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span><strong>Flagwatch</strong><small>CTF calendar</small></span>
+      </a>
+      <button class="timezone-button" id="timezone-button" type="button">Timezone</button>
+    </header>
+
+    <main>
+      <section class="calendar-shell" aria-labelledby="month-heading">
+        <div class="calendar-toolbar">
+          <div>
+            <p class="eyebrow">Public CTF schedule</p>
+            <h1 id="month-heading">Loading calendar</h1>
+          </div>
+          <div class="month-controls" aria-label="Calendar navigation">
+            <button id="previous-month" type="button" aria-label="Previous month">&#8592;</button>
+            <button id="today" type="button">Today</button>
+            <button id="next-month" type="button" aria-label="Next month">&#8594;</button>
+          </div>
+        </div>
+
+        <p class="status" id="status" role="status">Loading CTFs...</p>
+        <div class="calendar" id="calendar" aria-label="Month calendar"></div>
+      </section>
+
+      <section class="selected-day" aria-label="Selected day">
+        <h2 id="selected-day-heading">Select a day</h2>
+        <div id="selected-day-events"></div>
+      </section>
+    </main>
+
+    <dialog id="event-dialog" aria-labelledby="event-title">
+      <article class="dialog-card event-details">
+        <button class="dialog-close" type="button" data-close="event-dialog" aria-label="Close event details">&#215;</button>
+        <p class="eyebrow">CTF details</p>
+        <h2 id="event-title"></h2>
+        <div id="event-detail-body"></div>
+      </article>
+    </dialog>
+
+    <dialog id="timezone-confirm" aria-labelledby="timezone-confirm-title">
+      <form method="dialog" class="dialog-card timezone-card">
+        <p class="eyebrow">Local time</p>
+        <h2 id="timezone-confirm-title">Confirm timezone</h2>
+        <p>We detected <strong id="detected-timezone">America/Chicago</strong>. Is that right?</p>
+        <div class="dialog-actions">
+          <button class="primary" id="confirm-timezone" value="confirm">Use America/Chicago</button>
+          <button id="choose-timezone" value="choose">Change it</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="timezone-chooser" aria-labelledby="timezone-chooser-title">
+      <form method="dialog" class="dialog-card timezone-card" id="timezone-form">
+        <p class="eyebrow">Local time</p>
+        <h2 id="timezone-chooser-title">Change timezone</h2>
+        <label for="timezone-select">Timezone</label>
+        <select id="timezone-select" name="timezone"></select>
+        <div class="dialog-actions">
+          <button class="primary" id="save-timezone" value="save">Save timezone</button>
+          <button value="cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <noscript><p class="noscript">JavaScript is required to load the calendar. Event times default to America/Chicago.</p></noscript>
+  </body>
+</html>
