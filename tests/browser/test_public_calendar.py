@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from axe_playwright_python.sync_playwright import Axe
@@ -7,6 +8,7 @@ from playwright.sync_api import Page, expect
 
 ARTIFACTS = Path(__file__).parents[2] / "artifacts"
 SAVED_ZONE_SCRIPT = "localStorage.setItem('flagwatch.timeZone', 'America/Chicago')"
+SIGNAL_EVENT = re.compile(r"^Midwest Signal CTF")
 
 
 def _open_august(page: Page, static_site_server: str) -> None:
@@ -33,9 +35,7 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
 
     for date in ("2026-08-21", "2026-08-22", "2026-08-23"):
         expect(
-            page.locator(f'[data-date="{date}"]').get_by_role(
-                "button", name="Midwest Signal CTF", exact=True
-            )
+            page.locator(f'[data-date="{date}"]').get_by_role("button", name=SIGNAL_EVENT)
         ).to_be_visible()
     expect(page.locator('[data-date="2026-08-21"] .event-time').first).to_contain_text("10:00 AM")
 
@@ -96,7 +96,7 @@ def test_direct_event_link_exposes_all_details_and_closes(
     expect(dialog).not_to_be_visible()
     assert "event=" not in page.url
 
-    page.get_by_role("button", name="Midwest Signal CTF", exact=True).first.click()
+    page.get_by_role("button", name=SIGNAL_EVENT).first.click()
     expect(dialog).to_be_visible()
     page.locator("#event-dialog").click(position={"x": 1, "y": 1})
     expect(dialog).not_to_be_visible()
@@ -112,7 +112,7 @@ def test_phone_layout_has_selected_day_list_and_no_overflow(
     expect(page.locator('[data-date="2026-08-22"] .mobile-markers')).to_be_visible()
     selected = page.get_by_role("region", name="Selected day")
     expect(selected.get_by_role("heading", name="Saturday, August 22")).to_be_visible()
-    expect(selected.get_by_role("button", name="Midwest Signal CTF", exact=True)).to_be_visible()
+    expect(selected.get_by_role("button", name=SIGNAL_EVENT)).to_be_visible()
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
 
     ARTIFACTS.mkdir(exist_ok=True)
@@ -188,7 +188,7 @@ def test_browser_back_restores_previous_month_and_closes_event(
     page.go_back()
     expect(page.get_by_role("heading", name="August 2026")).to_be_visible()
 
-    page.get_by_role("button", name="Midwest Signal CTF", exact=True).first.click()
+    page.get_by_role("button", name=SIGNAL_EVENT).first.click()
     expect(page.get_by_role("dialog", name="Midwest Signal CTF")).to_be_visible()
     page.go_back()
     expect(page.get_by_role("dialog", name="Midwest Signal CTF")).not_to_be_visible()

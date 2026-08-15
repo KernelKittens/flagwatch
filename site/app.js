@@ -238,7 +238,6 @@
     button.type = "button";
     button.className = className;
     button.dataset.policy = event.ai_policy;
-    button.setAttribute("aria-label", event.title);
     const title = document.createElement("span");
     title.className = "event-name";
     title.textContent = event.title;
@@ -251,6 +250,7 @@
         hour: "numeric",
         minute: "2-digit",
       }).format(new Date(event.starts_at));
+      button.setAttribute("aria-label", `${event.title}, starts ${time.textContent}`);
       button.append(time);
     }
     button.addEventListener("click", () => openEvent(event));
@@ -276,7 +276,9 @@
       elements.selectedEvents.append(empty);
       return;
     }
-    events.forEach((event) => elements.selectedEvents.append(eventButton(event, "day-event")));
+    events.forEach((event) =>
+      elements.selectedEvents.append(eventButton(event, "day-event", true)),
+    );
   }
 
   function policyLabel(event) {
