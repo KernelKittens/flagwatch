@@ -56,7 +56,8 @@ def run_sync(database: Database) -> object:
 
 
 @app.route(route="events", methods=["GET"])
-def events(_request: func.HttpRequest) -> func.HttpResponse:
+def events(req: func.HttpRequest) -> func.HttpResponse:
+    del req
     payload = blob_store().download(CloudSnapshotService.public_blob)
     if payload is None:
         return func.HttpResponse(
@@ -79,5 +80,6 @@ def events(_request: func.HttpRequest) -> func.HttpResponse:
     run_on_startup=False,
     use_monitor=True,
 )
-def refresh_snapshot(_timer: func.TimerRequest) -> None:
+def refresh_snapshot(timer: func.TimerRequest) -> None:
+    del timer
     CloudSnapshotService(blob_store(), run_sync).refresh()

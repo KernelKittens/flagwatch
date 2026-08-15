@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -44,6 +45,19 @@ def test_cloud_run_disables_notification_queueing(monkeypatch, tmp_path: Path) -
         "ai_enabled": False,
         "queue_notifications": False,
     }
+
+
+def test_function_trigger_names_match_python_parameters() -> None:
+    module = _function_module()
+
+    for function in module.app.get_functions():
+        parameters = inspect.signature(function.get_user_function()).parameters
+        input_names = {
+            binding.get_dict_repr()["name"]
+            for binding in function.get_bindings()
+            if str(binding.get_dict_repr().get("direction")) == "BindingDirection.IN"
+        }
+        assert input_names <= parameters.keys()
 
 
 def test_events_returns_last_good_snapshot_with_cache_headers(monkeypatch) -> None:
