@@ -19,12 +19,45 @@ $bundle = Join-Path $stage 'function'
 $siteStage = Join-Path $stage 'site'
 $seedStage = Join-Path $stage 'seed'
 $zip = Join-Path $stage 'function.zip'
+$hostStorageKeyEnabled = $false
 
 function Invoke-AzJson {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
     $result = & az @Arguments -o json
     if ($LASTEXITCODE -ne 0) { throw "Azure CLI failed: az $($Arguments -join ' ')" }
     return $result | ConvertFrom-Json
+}
+
+function Invoke-NativeWithRetry {
+    param(
+        [scriptblock]$Action,
+        [string]$FailureMessage,
+        [int]$Attempts = 6
+    )
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        & $Action
+        if ($LASTEXITCODE -eq 0) { return }
+        if ($attempt -lt $Attempts) { Start-Sleep -Seconds 10 }
+    }
+    throw $FailureMessage
+}
+
+function Test-WebNameAvailable {
+    param([string]$Name, [string]$ResourceType)
+    $url = "https://management.azure.com/subscriptions/$ExpectedSubscriptionId/providers/Microsoft.Web/checknameavailability?api-version=2024-04-01"
+    $body = @{ name = $Name; type = $ResourceType; isFqdn = $true } |
+        ConvertTo-Json -Compress
+    $bodyPath = [IO.Path]::GetTempFileName()
+    try {
+        [IO.File]::WriteAllText($bodyPath, $body)
+        $result = & az rest --method post --url $url --headers Content-Type=application/json `
+            --body "@$bodyPath" -o json
+        if ($LASTEXITCODE -ne 0) { throw "Could not validate the global Azure name: $Name" }
+        return [bool](($result | ConvertFrom-Json).nameAvailable)
+    }
+    finally {
+        Remove-Item -LiteralPath $bodyPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 try {
@@ -67,20 +100,32 @@ try {
             throw 'The target resource group exists without the verified Flagwatch deployment marker.'
         }
         $resources = @(Invoke-AzJson resource list --resource-group $ResourceGroup)
+        $expectedResources = @{
+            'Microsoft.Storage/storageAccounts' = @($storageName, $hostStorageName)
+            'Microsoft.Web/staticSites' = @($swaName)
+            'Microsoft.Web/sites' = @($functionName)
+        }
         $unexpected = @($resources | Where-Object {
-            [string]$_.name -notmatch '^(stflagwatch|stfwhost|swa-flagwatch|func-flagwatch|ASP-)'
+            $type = [string]$_.type
+            $name = [string]$_.name
+            if ($type -eq 'Microsoft.Web/serverFarms') { return $false }
+            return -not ($expectedResources.ContainsKey($type) -and $name -in $expectedResources[$type])
         })
+        $plans = @($resources | Where-Object { [string]$_.type -eq 'Microsoft.Web/serverFarms' })
+        if ($plans.Count -gt 1) { throw "Multiple Function plans exist in $ResourceGroup." }
         if (@($unexpected).Count) { throw "Unexpected resources exist in $ResourceGroup." }
     } else {
         foreach ($name in @($storageName, $hostStorageName)) {
             $availability = Invoke-AzJson storage account check-name --name $name
             if (-not $availability.nameAvailable) { throw "Storage name is unavailable: $name" }
         }
-        $existingNames = @(
-            & az staticwebapp list --query "[?name=='$swaName'].name" -o tsv
-            & az functionapp list --query "[?name=='$functionName'].name" -o tsv
-        ) | Where-Object { $_ }
-        if ($existingNames.Count) { throw 'A planned global Azure name is already in use.' }
+        $existingStaticSite = & az staticwebapp list --query "[?name=='$swaName'].name" -o tsv
+        if ($LASTEXITCODE -ne 0 -or $existingStaticSite) {
+            throw "Static Web App name is unavailable in the approved subscription: $swaName"
+        }
+        if (-not (Test-WebNameAvailable $functionName 'Microsoft.Web/sites')) {
+            throw "Function App name is unavailable: $functionName"
+        }
     }
 
     & az group create --name $ResourceGroup --location $Location `
@@ -100,6 +145,7 @@ try {
         & az storage account update --resource-group $ResourceGroup --name $hostStorageName `
             --allow-shared-key-access true --output none
         if ($LASTEXITCODE -ne 0) { throw 'Temporary host storage setup failed.' }
+        $hostStorageKeyEnabled = $true
         & az functionapp create --resource-group $ResourceGroup --name $functionName `
             --storage-account $hostStorageName --flexconsumption-location $Location `
             --runtime python --runtime-version 3.13 --instance-memory 512 `
@@ -137,19 +183,21 @@ try {
         'FLAGWATCH_SEND_ENABLED=false' 'FLAGWATCH_CTFTIME_LOOKAHEAD_DAYS=90' --output none
     if ($LASTEXITCODE -ne 0) { throw 'Function settings failed.' }
 
-    & az functionapp deployment config set --resource-group $ResourceGroup --name $functionName `
-        --deployment-storage-name $hostStorageName `
-        --deployment-storage-container-name function-releases `
-        --deployment-storage-auth-type SystemAssignedIdentity --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Managed-identity deployment storage setup failed.' }
+    Invoke-NativeWithRetry -FailureMessage 'Managed-identity deployment storage setup failed.' -Action {
+        & az functionapp deployment config set --resource-group $ResourceGroup `
+            --name $functionName --deployment-storage-name $hostStorageName `
+            --deployment-storage-container-name function-releases `
+            --deployment-storage-auth-type SystemAssignedIdentity --output none
+    }
 
     New-Item -ItemType Directory -Path $stage, $bundle, $siteStage, $seedStage -Force | Out-Null
     & uv run python -m flagwatch.function_bundle $repo $bundle
     if ($LASTEXITCODE -ne 0) { throw 'Function bundle failed.' }
     Compress-Archive -Path (Join-Path $bundle '*') -DestinationPath $zip -Force
-    & az functionapp deployment source config-zip --resource-group $ResourceGroup --name $functionName `
-        --src $zip --build-remote true --timeout 600 --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Function deployment failed.' }
+    Invoke-NativeWithRetry -FailureMessage 'Function deployment failed.' -Action {
+        & az functionapp deployment source config-zip --resource-group $ResourceGroup `
+            --name $functionName --src $zip --build-remote true --timeout 600 --output none
+    }
 
     & uv run python -m flagwatch.seed_bundle $SeedDatabasePath $seedStage
     if ($LASTEXITCODE -ne 0) { throw 'Seed bundle failed.' }
@@ -163,14 +211,17 @@ try {
         if (-not $seedAssignment) { throw 'Could not grant seed upload access.' }
     }
     Start-Sleep -Seconds 10
-    & az storage blob upload --account-name $storageName --container-name flagwatch `
-        --name 'state/flagwatch.db' --file (Join-Path $seedStage 'flagwatch.db') `
-        --overwrite true --auth-mode login --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Database seed upload failed.' }
-    & az storage blob upload --account-name $storageName --container-name flagwatch `
-        --name 'public/events.json' --file (Join-Path $seedStage 'events.json') `
-        --content-type 'application/json; charset=utf-8' --overwrite true --auth-mode login --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Public snapshot seed upload failed.' }
+    Invoke-NativeWithRetry -FailureMessage 'Database seed upload failed.' -Action {
+        & az storage blob upload --account-name $storageName --container-name flagwatch `
+            --name 'state/flagwatch.db' --file (Join-Path $seedStage 'flagwatch.db') `
+            --overwrite true --auth-mode login --output none
+    }
+    Invoke-NativeWithRetry -FailureMessage 'Public snapshot seed upload failed.' -Action {
+        & az storage blob upload --account-name $storageName --container-name flagwatch `
+            --name 'public/events.json' --file (Join-Path $seedStage 'events.json') `
+            --content-type 'application/json; charset=utf-8' --overwrite true `
+            --auth-mode login --output none
+    }
 
     Copy-Item -Path (Join-Path $repo 'site\*') -Destination $siteStage -Recurse -Force
     $apiBase = "https://$functionName.azurewebsites.net"
@@ -213,6 +264,7 @@ try {
     & az storage account update --resource-group $ResourceGroup --name $hostStorageName `
         --allow-shared-key-access false --output none
     if ($LASTEXITCODE -ne 0) { throw 'Host storage shared-key shutdown failed.' }
+    $hostStorageKeyEnabled = $false
 
     $subscriptionId = [string]$account.id
     $budgetStart = [DateTime]::UtcNow.ToString('yyyy-MM-01')
@@ -241,6 +293,13 @@ try {
 }
 finally {
     Remove-Item Env:SWA_CLI_DEPLOYMENT_TOKEN -ErrorAction SilentlyContinue
+    if ($hostStorageKeyEnabled) {
+        & az storage account update --resource-group $ResourceGroup --name $hostStorageName `
+            --allow-shared-key-access false --output none 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning 'Host storage shared-key access could not be disabled during cleanup.'
+        }
+    }
     if (Test-Path -LiteralPath $stage) {
         Remove-Item -LiteralPath $stage -Recurse -Force
     }
