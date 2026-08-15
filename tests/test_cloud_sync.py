@@ -24,6 +24,9 @@ class MemoryBlobs:
             raise RuntimeError("upload failed")
         self.values[name] = value
 
+    def delete(self, name: str) -> None:
+        self.values.pop(name, None)
+
 
 def _event() -> Event:
     start = datetime(2026, 8, 21, 15, tzinfo=UTC)
@@ -85,3 +88,24 @@ def test_snapshot_is_published_only_after_database_upload_succeeds() -> None:
         service.refresh()
 
     assert blobs.values[service.public_blob] == previous
+
+
+def test_public_upload_failure_restores_previous_database(tmp_path: Path) -> None:
+    blobs = MemoryBlobs()
+    seed = Database(tmp_path / "previous.db")
+    seed.initialize()
+    seed.upsert_event(_event())
+    backup = tmp_path / "previous-backup.db"
+    seed.backup_to(backup)
+    previous_database = backup.read_bytes()
+    previous_snapshot = b'{"generated_at":"old","events":[]}'
+    blobs.values["state/flagwatch.db"] = previous_database
+    blobs.values["public/events.json"] = previous_snapshot
+    blobs.fail_on = "public/events.json"
+    service = CloudSnapshotService(blobs, lambda database: database.upsert_event(_event()))
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        service.refresh()
+
+    assert blobs.values[service.database_blob] == previous_database
+    assert blobs.values[service.public_blob] == previous_snapshot

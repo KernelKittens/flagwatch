@@ -47,6 +47,7 @@ class SyncService:
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         lookahead_days: int = 90,
         policy_extractor: PolicyExtractor | None = None,
+        queue_notifications: bool = True,
     ) -> None:
         self.database = database
         self.source = source
@@ -54,6 +55,7 @@ class SyncService:
         self.now = now
         self.lookahead_days = lookahead_days
         self.policy_extractor = policy_extractor
+        self.queue_notifications = queue_notifications
 
     def _apply_model_policy(
         self,
@@ -148,9 +150,10 @@ class SyncService:
                     )
                 self.database.save_facts(event.key, facts)
                 report.analyzed += 1
-                match = match_event(event, facts, criteria)
-                if queue_alert(self.database, event, facts, match, criteria.version):
-                    report.queued += 1
+                if self.queue_notifications:
+                    match = match_event(event, facts, criteria)
+                    if queue_alert(self.database, event, facts, match, criteria.version):
+                        report.queued += 1
             except Exception as error:
                 report.failures.append(f"{event.title}: {type(error).__name__}: {error}")
         return report

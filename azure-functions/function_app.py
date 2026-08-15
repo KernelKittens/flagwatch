@@ -35,6 +35,9 @@ class AzureBlobStore:
             content_settings=ContentSettings(content_type=content_type),
         )
 
+    def delete(self, name: str) -> None:
+        self.container.delete_blob(name, delete_snapshots="include")
+
 
 def blob_store() -> BlobStore:
     return AzureBlobStore(
@@ -49,7 +52,7 @@ def run_sync(database: Database) -> object:
         send_enabled=False,
         ai_enabled=False,
     )
-    return build_sync_service(settings).run()
+    return build_sync_service(settings, queue_notifications=False).run()
 
 
 @app.route(route="events", methods=["GET"])

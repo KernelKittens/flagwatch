@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 import azure.functions as func
 
@@ -23,6 +24,26 @@ class FakeBlobs:
 
     def download(self, _name: str) -> bytes | None:
         return self.value
+
+
+def test_cloud_run_disables_notification_queueing(monkeypatch, tmp_path: Path) -> None:
+    module = _function_module()
+    captured = {}
+
+    def build(settings, *, queue_notifications=True):
+        captured["send_enabled"] = settings.send_enabled
+        captured["ai_enabled"] = settings.ai_enabled
+        captured["queue_notifications"] = queue_notifications
+        return SimpleNamespace(run=lambda: object())
+
+    monkeypatch.setattr(module, "build_sync_service", build)
+    module.run_sync(module.Database(tmp_path / "cloud.db"))
+
+    assert captured == {
+        "send_enabled": False,
+        "ai_enabled": False,
+        "queue_notifications": False,
+    }
 
 
 def test_events_returns_last_good_snapshot_with_cache_headers(monkeypatch) -> None:

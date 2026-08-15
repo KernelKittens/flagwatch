@@ -46,7 +46,7 @@ def _require_loopback(host: str) -> None:
         raise typer.BadParameter("Flagwatch only binds to a loopback address")
 
 
-def build_sync_service(settings: Settings) -> SyncService:
+def build_sync_service(settings: Settings, *, queue_notifications: bool = True) -> SyncService:
     database = _database(settings)
     source_client = httpx.Client(timeout=settings.request_timeout_seconds)
     page_client = httpx.Client(timeout=settings.request_timeout_seconds)
@@ -64,6 +64,7 @@ def build_sync_service(settings: Settings) -> SyncService:
         fetcher=GuardedFetcher(page_client, max_bytes=settings.max_response_bytes),
         lookahead_days=settings.ctftime_lookahead_days,
         policy_extractor=policy_extractor,
+        queue_notifications=queue_notifications,
     )
 
 

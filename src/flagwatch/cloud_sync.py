@@ -15,6 +15,8 @@ class BlobStore(Protocol):
 
     def upload(self, name: str, value: bytes, *, content_type: str) -> None: ...
 
+    def delete(self, name: str) -> None: ...
+
 
 class CloudSnapshotService:
     database_blob = "state/flagwatch.db"
@@ -54,8 +56,19 @@ class CloudSnapshotService:
                 database_bytes,
                 content_type="application/vnd.sqlite3",
             )
-            self.blobs.upload(
-                self.public_blob,
-                public_bytes,
-                content_type="application/json; charset=utf-8",
-            )
+            try:
+                self.blobs.upload(
+                    self.public_blob,
+                    public_bytes,
+                    content_type="application/json; charset=utf-8",
+                )
+            except Exception:
+                if previous is None:
+                    self.blobs.delete(self.database_blob)
+                else:
+                    self.blobs.upload(
+                        self.database_blob,
+                        previous,
+                        content_type="application/vnd.sqlite3",
+                    )
+                raise
