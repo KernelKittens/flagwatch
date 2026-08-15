@@ -26,7 +26,7 @@ class PublicEvent(BaseModel):
     participants: int | None
     ai_policy: AiPolicy
     ai_policy_reason: str
-    ai_policy_source: str | None
+    ai_policy_source: HttpUrl | None
     ai_policy_evidence: str | None
     ai_policy_confidence: float
     ai_policy_conflicting: bool
@@ -85,7 +85,9 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
             participants=view.event.participants,
             ai_policy=view.facts.ai_policy,
             ai_policy_reason=view.facts.ai_policy_reason,
-            ai_policy_source=view.facts.ai_policy_source,
+            ai_policy_source=(
+                HttpUrl(view.facts.ai_policy_source) if view.facts.ai_policy_source else None
+            ),
             ai_policy_evidence=view.facts.ai_policy_evidence,
             ai_policy_confidence=view.facts.ai_policy_confidence,
             ai_policy_conflicting=view.facts.ai_policy_conflicting,

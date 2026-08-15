@@ -1,6 +1,9 @@
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
+import pytest
+from pydantic import ValidationError
+
 from flagwatch.domain import AiPolicy, Event, EventFacts, ScheduleMode
 from flagwatch.public_snapshot import build_public_snapshot
 from flagwatch.storage import Database
@@ -64,3 +67,24 @@ def test_build_public_snapshot_exposes_display_facts_without_internal_data(tmp_p
     assert "source_payload" not in payload
     assert "analysis_error" not in payload
     assert "internal failure" not in payload
+
+
+def test_build_public_snapshot_rejects_non_http_policy_evidence_url(tmp_path):
+    database = Database(tmp_path / "flagwatch.sqlite3")
+    database.initialize()
+    starts_at = datetime(2026, 8, 15, 18, tzinfo=UTC)
+    event = Event(
+        source="ctftime",
+        source_id="123",
+        title="Example CTF",
+        official_url="https://example.test/official",
+        ctftime_url="https://ctftime.org/event/123",
+        starts_at=starts_at,
+        finishes_at=starts_at + timedelta(days=2),
+        online=True,
+    )
+    database.upsert_event(event)
+    database.save_facts(event.key, EventFacts(ai_policy_source="javascript:alert(1)"))
+
+    with pytest.raises(ValidationError, match="URL scheme should be 'http' or 'https'"):
+        build_public_snapshot(database, generated_at=starts_at)
