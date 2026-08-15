@@ -193,10 +193,14 @@ try {
     New-Item -ItemType Directory -Path $stage, $bundle, $siteStage, $seedStage -Force | Out-Null
     & uv run python -m flagwatch.function_bundle $repo $bundle
     if ($LASTEXITCODE -ne 0) { throw 'Function bundle failed.' }
+    $pythonPackages = Join-Path $bundle '.python_packages\lib\site-packages'
+    & uv pip install --target $pythonPackages --python-platform x86_64-manylinux_2_17 `
+        --python-version 3.13 --requirements (Join-Path $bundle 'requirements.txt')
+    if ($LASTEXITCODE -ne 0) { throw 'Local Linux Function dependency bundle failed.' }
     Compress-Archive -Path (Join-Path $bundle '*') -DestinationPath $zip -Force
-    Invoke-NativeWithRetry -FailureMessage 'Function deployment failed.' -Action {
+    Invoke-NativeWithRetry -Attempts 3 -FailureMessage 'Function deployment failed.' -Action {
         & az functionapp deployment source config-zip --resource-group $ResourceGroup `
-            --name $functionName --src $zip --build-remote true --timeout 600 --output none
+            --name $functionName --src $zip --build-remote false --timeout 300 --output none
     }
 
     & uv run python -m flagwatch.seed_bundle $SeedDatabasePath $seedStage
