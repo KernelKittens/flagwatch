@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="form-page" aria-labelledby="settings-title">
+  <p class="eyebrow">Matching controls</p>
+  <h1 id="settings-title">Choose what earns an alert.</h1>
+  <p class="lede">AI compatibility stays mandatory. These controls narrow the compatible events.</p>
+  {% if request.query_params.get('saved') %}<p class="notice" role="status">Criteria saved.</p>{% endif %}
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1">
+    <h2>Check these values</h2>
+    <ul>{% for error in errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  <form method="post" action="/settings" class="criteria-form">
+    <fieldset>
+      <legend>Participation</legend>
+      <label class="check-row"><input type="checkbox" name="require_online" {% if criteria.require_online %}checked{% endif %}> Require online participation</label>
+      <label for="max-team-size">Maximum team size</label>
+      <input id="max-team-size" name="max_team_size" type="number" min="1" max="100" value="{{ criteria.max_team_size or '' }}" inputmode="numeric">
+      <p class="field-help">Events with an unknown team limit will not alert when this is set.</p>
+    </fieldset>
+    <fieldset>
+      <legend>Time and prizes</legend>
+      <label for="max-duration">Maximum duration in hours</label>
+      <input id="max-duration" name="max_duration_hours" type="number" min="1" max="744" value="{{ criteria.max_duration_hours or '' }}" inputmode="numeric">
+      <label class="check-row"><input type="checkbox" name="require_prize" {% if criteria.require_prize %}checked{% endif %}> Require a stated prize</label>
+    </fieldset>
+    <fieldset>
+      <legend>Schedule modes</legend>
+      {% for mode in ["fixed", "rolling", "staggered", "multi_stage"] %}
+      <label class="check-row"><input type="checkbox" name="allowed_schedule_modes" value="{{ mode }}" {% if mode in criteria.allowed_schedule_modes %}checked{% endif %}> {{ mode|replace("_", " ")|title }}</label>
+      {% endfor %}
+      <p class="field-help">Leave every mode unchecked to accept any schedule.</p>
+    </fieldset>
+    <button type="submit">Save criteria</button>
+  </form>
+</section>
+{% endblock %}

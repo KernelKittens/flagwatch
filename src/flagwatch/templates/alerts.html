@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="alerts-page" aria-labelledby="alerts-title">
+  <p class="eyebrow">Delivery outbox</p>
+  <h1 id="alerts-title">Alert history</h1>
+  <p class="lede">Delivery is {{ "enabled" if send_enabled else "disabled" }}. Disabled alerts remain previews.</p>
+  {% if records %}
+  <ol class="alert-list">
+    {% for record, message in records %}
+    <li>
+      <article>
+        <div><span class="alert-state">{{ record.status|title }}</span><span>{{ record.channel|title }}</span></div>
+        <h2>{{ message.title }}</h2>
+        <p>{{ message.body }}</p>
+        {% if record.last_error %}<p class="error-text">Last error: {{ record.last_error }}</p>{% endif %}
+      </article>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <div class="empty-state"><h2>No alert previews yet.</h2><p>A compatible match will appear here after sync.</p></div>
+  {% endif %}
+</section>
+{% endblock %}

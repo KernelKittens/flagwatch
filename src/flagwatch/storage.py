@@ -139,6 +139,28 @@ class Database:
             for row in rows
         ]
 
+    def get_event(self, event_key: str) -> EventView | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT events.data_json AS event_json, event_facts.data_json AS facts_json
+                FROM events
+                LEFT JOIN event_facts USING (event_key)
+                WHERE events.event_key = ?
+                """,
+                (event_key,),
+            ).fetchone()
+        if row is None:
+            return None
+        return EventView(
+            event=Event.model_validate_json(row["event_json"]),
+            facts=(
+                EventFacts.model_validate_json(row["facts_json"])
+                if row["facts_json"]
+                else EventFacts()
+            ),
+        )
+
     def get_criteria(self) -> Criteria:
         with self._connect() as connection:
             row = connection.execute(

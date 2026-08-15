@@ -106,9 +106,7 @@ class CtftimeSource:
         self.client = client or httpx.Client(timeout=10.0)
         self.base_url = base_url.rstrip("/")
 
-    def fetch_events(
-        self, start: datetime, finish: datetime
-    ) -> list[tuple[Event, EventFacts]]:
+    def fetch_events(self, start: datetime, finish: datetime) -> list[tuple[Event, EventFacts]]:
         response = self.client.get(
             f"{self.base_url}/events/",
             params={

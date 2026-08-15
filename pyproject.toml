@@ -21,10 +21,13 @@ flagwatch = "flagwatch.cli:app"
 
 [dependency-groups]
 dev = [
+  "axe-playwright-python>=0.1.8",
+  "httpx2>=2.10",
   "mypy>=1.17",
   "playwright>=1.54",
   "pytest>=8.4",
   "pytest-asyncio>=1.1",
+  "pytest-playwright>=0.9",
   "ruff>=0.12",
 ]
 

@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="masthead" aria-labelledby="page-title">
+  <div>
+    <p class="eyebrow">CTF watch / Central time</p>
+    <h1 id="page-title">Upcoming CTFs, with the rules that matter.</h1>
+    <p class="lede">Every event stays visible. Alerts require a confirmed AI-compatible policy.</p>
+  </div>
+  <dl class="board-counts" aria-label="Event counts">
+    <div><dt>Alert candidates</dt><dd>{{ candidate_count }}</dd></div>
+    <div><dt>Suppressed</dt><dd>{{ suppressed_count }}</dd></div>
+  </dl>
+</section>
+
+{% if events %}
+<section class="event-board" aria-labelledby="event-board-title">
+  <div class="section-heading">
+    <h2 id="event-board-title">Event board</h2>
+    <a href="/settings">Change matching criteria</a>
+  </div>
+  <ol class="event-list">
+    {% for row in events %}
+    <li>
+      <article class="event-dossier {{ 'is-candidate' if row.match.alert_eligible else 'is-suppressed' }}" aria-labelledby="event-{{ loop.index }}-title">
+        <div class="dossier-index" aria-hidden="true">{{ "%02d"|format(loop.index) }}</div>
+        <div class="dossier-main">
+          <div class="event-heading">
+            <div>
+              <p class="event-kicker">{{ row.view.event.format or "CTF" }} / {{ row.view.event.source }}</p>
+              <h3 id="event-{{ loop.index }}-title"><a href="/events/{{ row.view.event.key }}">{{ row.view.event.title }}</a></h3>
+            </div>
+            <div class="status-stack">
+              <span class="policy-badge policy-{{ row.policy_class }}">{{ row.policy_label }}</span>
+              <span class="alert-state">{{ row.alert_status }}</span>
+            </div>
+          </div>
+          <dl class="fact-strip">
+            <div><dt>Central start</dt><dd>{{ row.central_time }}</dd></div>
+            <div><dt>Duration</dt><dd>{{ row.duration }}</dd></div>
+            <div><dt>Team max</dt><dd>{{ row.view.facts.team_max or "Unknown" }}</dd></div>
+            <div><dt>Schedule</dt><dd>{{ row.view.facts.schedule_mode.value|replace("_", " ")|title }}</dd></div>
+          </dl>
+          {% if row.view.facts.divisions %}
+          <p class="compact-line"><strong>Divisions:</strong> {{ row.view.facts.divisions|join(", ") }}</p>
+          {% endif %}
+          {% if row.prize_summary %}
+          <p class="compact-line"><strong>Prize:</strong> {{ row.prize_summary }}</p>
+          {% endif %}
+          <div class="decision-line">
+            <strong>{{ "Matched" if row.match.alert_eligible else "Not alerting" }}:</strong>
+            {{ (row.match.match_reasons if row.match.alert_eligible else row.match.rejection_reasons)|join("; ") }}
+          </div>
+        </div>
+        <aside class="evidence-rail" aria-label="AI-policy evidence">
+          <span class="rail-label">Policy evidence</span>
+          <p>{{ row.view.facts.ai_policy_reason }}</p>
+          {% if row.view.facts.ai_policy_evidence %}<blockquote>{{ row.view.facts.ai_policy_evidence }}</blockquote>{% endif %}
+          {% if row.view.facts.ai_policy_source %}<a href="{{ row.view.facts.ai_policy_source }}" rel="noreferrer">Official source</a>{% else %}<span>No source found</span>{% endif %}
+        </aside>
+      </article>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
+{% else %}
+<section class="empty-state" aria-labelledby="empty-title">
+  <p class="eyebrow">No imported events</p>
+  <h2 id="empty-title">The board is empty.</h2>
+  <p>Run a sync to import the next 90 days from CTFtime.</p>
+</section>
+{% endif %}
+{% endblock %}

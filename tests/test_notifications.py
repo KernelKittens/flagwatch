@@ -103,7 +103,9 @@ def test_discord_sender_posts_plain_alert():
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
-    sender.send(AlertMessage(title="Test CTF", body="AI policy: ai assisted", url="https://ctf.example"))
+    sender.send(
+        AlertMessage(title="Test CTF", body="AI policy: ai assisted", url="https://ctf.example")
+    )
 
     payload = requests[0].read().decode()
     assert "Test CTF" in payload

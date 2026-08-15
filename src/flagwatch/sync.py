@@ -18,9 +18,7 @@ from flagwatch.storage import Database
 
 
 class EventSource(Protocol):
-    def fetch_events(
-        self, start: datetime, finish: datetime
-    ) -> list[tuple[Event, EventFacts]]: ...
+    def fetch_events(self, start: datetime, finish: datetime) -> list[tuple[Event, EventFacts]]: ...
 
 
 class PageFetcher(Protocol):

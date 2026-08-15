@@ -55,9 +55,7 @@ def _schedule_mode(text: str, current: ScheduleMode) -> ScheduleMode:
     return current
 
 
-def extract_event_facts(
-    documents: Sequence[EvidenceDocument], seed: EventFacts
-) -> EventFacts:
+def extract_event_facts(documents: Sequence[EvidenceDocument], seed: EventFacts) -> EventFacts:
     combined = "\n".join(document.text for document in documents)
     policy = classify_ai_policy(documents)
     team_max = _team_max(combined)

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<a class="back-link" href="/">Back to event board</a>
+<article class="event-page">
+  <header>
+    <p class="eyebrow">Event dossier / {{ row.view.event.source }}</p>
+    <h1>{{ row.view.event.title }}</h1>
+    <div class="status-stack horizontal">
+      <span class="policy-badge policy-{{ row.policy_class }}">{{ row.policy_label }}</span>
+      <span class="alert-state">{{ row.alert_status }}</span>
+    </div>
+  </header>
+  <section aria-labelledby="event-facts-title">
+    <h2 id="event-facts-title">Event facts</h2>
+    <dl class="detail-grid">
+      <div><dt>Central time</dt><dd>{{ row.central_time }}</dd></div>
+      <div><dt>Duration</dt><dd>{{ row.duration }}</dd></div>
+      <div><dt>Team maximum</dt><dd>{{ row.view.facts.team_max or "Unknown" }}</dd></div>
+      <div><dt>Format</dt><dd>{{ row.view.event.format or "Unknown" }}</dd></div>
+      <div><dt>Schedule</dt><dd>{{ row.view.facts.schedule_mode.value|replace("_", " ")|title }}</dd></div>
+      <div><dt>Participation</dt><dd>{{ "Online" if row.view.event.online else "Onsite" }}</dd></div>
+    </dl>
+  </section>
+  <section class="policy-panel" aria-labelledby="policy-title">
+    <p class="eyebrow">Hard alert gate</p>
+    <h2 id="policy-title">{{ row.policy_label }}</h2>
+    <p>{{ row.view.facts.ai_policy_reason }}</p>
+    {% if row.view.facts.ai_policy_evidence %}<blockquote>{{ row.view.facts.ai_policy_evidence }}</blockquote>{% endif %}
+    {% if row.view.facts.ai_policy_source %}<a href="{{ row.view.facts.ai_policy_source }}" rel="noreferrer">Read the official policy</a>{% endif %}
+  </section>
+  <div class="action-row">
+    <a class="button" href="{{ row.view.event.official_url }}" rel="noreferrer">Open event site</a>
+    <a class="button secondary" href="/events/{{ row.view.event.key }}.ics">Download calendar file</a>
+  </div>
+</article>
+{% endblock %}

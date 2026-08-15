@@ -639,9 +639,7 @@ def serve(host: str = "127.0.0.1", port: int = 4814) -> None:
 @app.command()
 def sync() -> None:
     report = build_sync_service().run()
-    typer.echo(
-        f"Imported {report.imported} events. Queued {report.queued} alert preview."
-    )
+    typer.echo(f"Imported {report.imported} events. Queued {report.queued} alert preview.")
 ```
 
 Document `uv sync`, `uv run flagwatch sync`, and `uv run flagwatch serve`. Explain that sending is off by default and that `FLAGWATCH_SEND_ENABLED=true` still requires a valid configured destination. Include environment names only, never values.

@@ -84,9 +84,7 @@ def render_alert(event: Event, facts: EventFacts, match: MatchResult) -> AlertMe
     return AlertMessage(title=event.title, body="\n".join(details), url=str(event.official_url))
 
 
-def _dedupe_key(
-    event: Event, facts: EventFacts, criteria_version: int, channel: str
-) -> str:
+def _dedupe_key(event: Event, facts: EventFacts, criteria_version: int, channel: str) -> str:
     material = {
         "event": {
             "key": event.key,
