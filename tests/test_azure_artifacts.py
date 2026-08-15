@@ -32,5 +32,6 @@ def test_deploy_script_enforces_function_and_safety_contract() -> None:
     assert "rg-1337-pwnsp4c3-ctf-2026" not in script
     assert "discord" not in script.casefold()
     assert "smtp" not in script.casefold()
-    assert "deployment-token $token" in script
+    assert "$env:SWA_CLI_DEPLOYMENT_TOKEN = $token" in script
+    assert "--deployment-token $token" not in script
     assert "Write-Output $token" not in script
