@@ -3,10 +3,12 @@
 
   const FALLBACK_ZONE = "America/Chicago";
   const ZONE_KEY = "flagwatch.timeZone";
+  const savedZone = readSavedZone();
+  const initialZone = savedZone || detectZone();
   const state = {
     events: [],
-    month: parseMonth(new URLSearchParams(location.search).get("month")) || monthStart(new Date()),
-    timeZone: localStorage.getItem(ZONE_KEY) || detectZone(),
+    month: monthFromUrl(initialZone),
+    timeZone: initialZone,
     selectedDate: null,
     expandedDates: new Set(),
   };
@@ -36,8 +38,35 @@
     }
   }
 
-  function monthStart(date) {
-    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+  function validZone(zone) {
+    try {
+      new Intl.DateTimeFormat("en-US", {timeZone: zone}).format(new Date());
+      return Boolean(zone);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function readSavedZone() {
+    const zone = localStorage.getItem(ZONE_KEY);
+    if (validZone(zone)) return zone;
+    if (zone) localStorage.removeItem(ZONE_KEY);
+    return null;
+  }
+
+  function partsInZone(date, timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  }
+
+  function monthForDate(date, timeZone) {
+    const parts = partsInZone(date, timeZone);
+    return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, 1));
   }
 
   function parseMonth(value) {
@@ -47,18 +76,17 @@
     return new Date(Date.UTC(year, month - 1, 1));
   }
 
+  function monthFromUrl(timeZone) {
+    const month = new URLSearchParams(location.search).get("month");
+    return parseMonth(month) || monthForDate(new Date(), timeZone);
+  }
+
   function monthKey(date) {
     return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
   }
 
   function dateKey(date, timeZone = state.timeZone) {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(date);
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const values = partsInZone(date, timeZone);
     return `${values.year}-${values.month}-${values.day}`;
   }
 
@@ -73,7 +101,10 @@
 
   function eventDays(event) {
     const startKey = dateKey(new Date(event.starts_at));
-    const finishKey = dateKey(new Date(event.finishes_at));
+    const start = new Date(event.starts_at);
+    const finish = new Date(event.finishes_at);
+    const occupiedFinish = finish > start ? new Date(finish.getTime() - 1) : finish;
+    const finishKey = dateKey(occupiedFinish);
     const days = [];
     let cursor = new Date(`${startKey}T12:00:00Z`);
     const last = new Date(`${finishKey}T12:00:00Z`);
@@ -88,7 +119,7 @@
     return state.events.filter((event) => eventDays(event).includes(date));
   }
 
-  function updateUrl(values = {}) {
+  function updateUrl(values = {}, mode = "replace") {
     const params = new URLSearchParams(location.search);
     params.set("month", monthKey(state.month));
     for (const [key, value] of Object.entries(values)) {
@@ -98,7 +129,12 @@
         params.delete(key);
       }
     }
-    history.replaceState(null, "", `${location.pathname}?${params}`);
+    const url = `${location.pathname}?${params}`;
+    if (mode === "push") {
+      history.pushState(null, "", url);
+    } else {
+      history.replaceState(null, "", url);
+    }
   }
 
   function setMonth(delta) {
@@ -106,7 +142,7 @@
       Date.UTC(state.month.getUTCFullYear(), state.month.getUTCMonth() + delta, 1),
     );
     state.selectedDate = null;
-    updateUrl({event: null});
+    updateUrl({event: null}, "push");
     renderCalendar();
   }
 
@@ -118,23 +154,36 @@
     }).format(state.month);
     document.title = `${elements.heading.textContent} CTFs | Flagwatch`;
     elements.calendar.replaceChildren();
+    const headerRow = document.createElement("div");
+    headerRow.className = "calendar-row";
+    headerRow.setAttribute("role", "row");
     ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((name) => {
       const heading = document.createElement("div");
       heading.className = "weekday";
+      heading.setAttribute("role", "columnheader");
       heading.textContent = name;
-      elements.calendar.append(heading);
+      headerRow.append(heading);
     });
+    elements.calendar.append(headerRow);
 
     const first = new Date(state.month);
     first.setUTCDate(1 - first.getUTCDay());
     const currentMonth = state.month.getUTCMonth();
     const today = dateKey(new Date());
+    let weekRow;
     for (let offset = 0; offset < 42; offset += 1) {
+      if (offset % 7 === 0) {
+        weekRow = document.createElement("div");
+        weekRow.className = "calendar-row";
+        weekRow.setAttribute("role", "row");
+        elements.calendar.append(weekRow);
+      }
       const date = new Date(first);
       date.setUTCDate(first.getUTCDate() + offset);
       const key = date.toISOString().slice(0, 10);
       const cell = document.createElement("div");
       cell.className = "calendar-cell";
+      cell.setAttribute("role", "gridcell");
       cell.dataset.date = key;
       if (date.getUTCMonth() !== currentMonth) cell.classList.add("outside");
       if (key === state.selectedDate) cell.classList.add("selected");
@@ -154,7 +203,7 @@
       const events = eventsOn(key);
       const expanded = state.expandedDates.has(key);
       const visible = expanded ? events : events.slice(0, 3);
-      visible.forEach((event) => eventList.append(eventButton(event, "event-chip")));
+      visible.forEach((event) => eventList.append(eventButton(event, "event-chip", true)));
       if (!expanded && events.length > 3) {
         const more = document.createElement("button");
         more.type = "button";
@@ -167,17 +216,43 @@
         eventList.append(more);
       }
       cell.append(eventList);
-      elements.calendar.append(cell);
+      if (events.length) {
+        const markers = document.createElement("span");
+        markers.className = "mobile-markers";
+        markers.setAttribute("aria-label", `${events.length} event${events.length === 1 ? "" : "s"}`);
+        events.slice(0, 5).forEach((event) => {
+          const marker = document.createElement("span");
+          marker.dataset.policy = event.ai_policy;
+          marker.setAttribute("aria-hidden", "true");
+          markers.append(marker);
+        });
+        cell.append(markers);
+      }
+      weekRow.append(cell);
     }
     if (state.selectedDate) renderSelectedDay();
   }
 
-  function eventButton(event, className) {
+  function eventButton(event, className, includeTime = false) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = className;
     button.dataset.policy = event.ai_policy;
-    button.textContent = event.title;
+    button.setAttribute("aria-label", event.title);
+    const title = document.createElement("span");
+    title.className = "event-name";
+    title.textContent = event.title;
+    button.append(title);
+    if (includeTime) {
+      const time = document.createElement("span");
+      time.className = "event-time";
+      time.textContent = new Intl.DateTimeFormat("en-US", {
+        timeZone: state.timeZone,
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date(event.starts_at));
+      button.append(time);
+    }
     button.addEventListener("click", () => openEvent(event));
     return button;
   }
@@ -224,17 +299,22 @@
   }
 
   function duration(event) {
-    const hours = Math.round((new Date(event.finishes_at) - new Date(event.starts_at)) / 3600000);
-    const days = Math.floor(hours / 24);
-    const remainingHours = hours % 24;
+    const totalMinutes = Math.max(
+      0,
+      Math.round((new Date(event.finishes_at) - new Date(event.starts_at)) / 60000),
+    );
+    const days = Math.floor(totalMinutes / 1440);
+    const remainingHours = Math.floor((totalMinutes % 1440) / 60);
+    const minutes = totalMinutes % 60;
     const parts = [
       days ? `${days} day${days === 1 ? "" : "s"}` : "",
       remainingHours ? `${remainingHours} hour${remainingHours === 1 ? "" : "s"}` : "",
+      minutes ? `${minutes} minute${minutes === 1 ? "" : "s"}` : "",
     ];
-    return parts.filter(Boolean).join(" ");
+    return parts.filter(Boolean).join(" ") || "0 minutes";
   }
 
-  function display(value, fallback = "Not listed") {
+  function display(value, fallback = "Unknown") {
     if (Array.isArray(value)) return value.length ? value.join(", ") : fallback;
     return value === null || value === undefined || value === "" ? fallback : String(value);
   }
@@ -286,7 +366,7 @@
     return "Online";
   }
 
-  function openEvent(event) {
+  function openEvent(event, updateHistory = true) {
     elements.eventTitle.textContent = event.title;
     const evidenceLink = event.ai_policy_source
       ? `<a href="${escapeHtml(event.ai_policy_source)}" target="_blank" rel="noopener noreferrer">AI policy source</a>`
@@ -304,6 +384,8 @@
       ["Location", locationLabel(event)],
       ["Registration", display(event.registration_status)],
       ["Categories", display(event.categories)],
+      ["Organizers", display(event.organizers)],
+      ["Participants", display(event.participants)],
     ];
     elements.eventBody.innerHTML = `
       <section class="policy-banner ${policyClass(event)}" aria-label="AI policy">
@@ -318,8 +400,8 @@
         ${evidenceLink}
         <a href="${icsLink(event)}" download="${slug(event.title)}.ics">Download ICS</a>
       </nav>`;
-    updateUrl({event: event.event_key});
-    elements.eventDialog.showModal();
+    if (updateHistory) updateUrl({event: event.event_key}, "push");
+    if (!elements.eventDialog.open) elements.eventDialog.showModal();
   }
 
   function closeEvent() {
@@ -353,7 +435,7 @@
     renderCalendar();
     if (elements.eventDialog.open) {
       const event = eventFromUrl();
-      if (event) openEvent(event);
+      if (event) openEvent(event, false);
     }
   }
 
@@ -367,7 +449,7 @@
       elements.status.textContent = `${state.events.length} CTF${state.events.length === 1 ? "" : "s"} in this feed. Times shown in ${state.timeZone}.`;
       renderCalendar();
       const event = eventFromUrl();
-      if (event) openEvent(event);
+      if (event) openEvent(event, false);
     } catch (_) {
       elements.status.textContent = "The calendar feed is unavailable right now. Please try again shortly.";
       renderCalendar();
@@ -377,8 +459,8 @@
   document.querySelector("#previous-month").addEventListener("click", () => setMonth(-1));
   document.querySelector("#next-month").addEventListener("click", () => setMonth(1));
   document.querySelector("#today").addEventListener("click", () => {
-    state.month = monthStart(new Date());
-    updateUrl({event: null});
+    state.month = monthForDate(new Date(), state.timeZone);
+    updateUrl({event: null}, "push");
     renderCalendar();
   });
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeEvent));
@@ -388,7 +470,13 @@
     closeEvent();
   });
   elements.eventDialog.addEventListener("click", (event) => {
-    if (event.target === elements.eventDialog) closeEvent();
+    const bounds = elements.eventDialog.getBoundingClientRect();
+    const onDialogEdge =
+      event.clientX <= bounds.left + 4 ||
+      event.clientX >= bounds.right - 4 ||
+      event.clientY <= bounds.top + 4 ||
+      event.clientY >= bounds.bottom - 4;
+    if (event.target === elements.eventDialog || onDialogEdge) closeEvent();
   });
   elements.timezoneButton.addEventListener("click", () => {
     populateZones();
@@ -405,9 +493,19 @@
       elements.timezoneChooser.showModal();
     }
   });
+  addEventListener("popstate", () => {
+    state.month = monthFromUrl(state.timeZone);
+    renderCalendar();
+    const event = eventFromUrl();
+    if (event) {
+      openEvent(event, false);
+    } else if (elements.eventDialog.open) {
+      elements.eventDialog.close();
+    }
+  });
 
   updateTimezoneButton();
-  if (!localStorage.getItem(ZONE_KEY)) {
+  if (!savedZone) {
     elements.detectedTimezone.textContent = state.timeZone;
     elements.confirmTimezone.textContent = `Use ${state.timeZone}`;
     elements.timezoneConfirm.showModal();

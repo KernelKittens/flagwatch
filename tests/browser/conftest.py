@@ -20,6 +20,18 @@ from flagwatch.sync import SyncReport
 from flagwatch.web import create_app
 
 ROOT = Path(__file__).parents[2]
+UNSAFE_BROWSER_PORTS = {
+    *range(6665, 6670),
+    2049,
+    3659,
+    4045,
+    5060,
+    5061,
+    6000,
+    6566,
+    6697,
+    10080,
+}
 
 
 def _bound_socket() -> socket.socket:
@@ -111,7 +123,11 @@ class _StaticSiteHandler(SimpleHTTPRequestHandler):
 @pytest.fixture()
 def static_site_server() -> Iterator[str]:
     handler = partial(_StaticSiteHandler, directory=str(ROOT / "site"))
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    while True:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        if server.server_address[1] not in UNSAFE_BROWSER_PORTS:
+            break
+        server.server_close()
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:

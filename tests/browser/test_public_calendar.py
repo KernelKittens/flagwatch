@@ -23,6 +23,9 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
     expect(page.get_by_role("heading", name="August 2026")).to_be_visible()
     headings = page.locator(".weekday")
     assert headings.all_text_contents() == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    expect(page.get_by_role("grid", name="Month calendar")).to_be_visible()
+    assert page.get_by_role("columnheader").count() == 7
+    assert page.get_by_role("gridcell").count() == 42
     cells = page.locator(".calendar-cell")
     assert cells.count() == 42
     assert cells.first.get_attribute("data-date") == "2026-07-26"
@@ -34,6 +37,7 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
                 "button", name="Midwest Signal CTF", exact=True
             )
         ).to_be_visible()
+    expect(page.locator('[data-date="2026-08-21"] .event-time').first).to_contain_text("10:00 AM")
 
     crowded = page.locator('[data-date="2026-08-22"]')
     expect(crowded.get_by_role("button", name="2 more events")).to_be_visible()
@@ -69,6 +73,8 @@ def test_direct_event_link_exposes_all_details_and_closes(
         "Fixed",
         "Online",
         "2 days 6 hours",
+        "Signal Crew",
+        "318",
         "Aug 21, 2026",
         "Aug 23, 2026",
     ):
@@ -103,6 +109,7 @@ def test_phone_layout_has_selected_day_list_and_no_overflow(
     _open_august(page, static_site_server)
 
     page.locator('[data-date="2026-08-22"] .day-select').click()
+    expect(page.locator('[data-date="2026-08-22"] .mobile-markers')).to_be_visible()
     selected = page.get_by_role("region", name="Selected day")
     expect(selected.get_by_role("heading", name="Saturday, August 22")).to_be_visible()
     expect(selected.get_by_role("button", name="Midwest Signal CTF", exact=True)).to_be_visible()
@@ -136,8 +143,7 @@ def test_first_visit_confirms_detected_timezone(page: Page, static_site_server: 
 def test_saved_timezone_skips_confirmation_and_can_be_changed(
     page: Page, static_site_server: str
 ) -> None:
-    page.add_init_script(SAVED_ZONE_SCRIPT)
-    page.goto(f"{static_site_server}/?month=2026-08")
+    _open_august(page, static_site_server)
 
     expect(page.get_by_role("dialog", name="Confirm timezone")).not_to_be_visible()
     page.get_by_role("button", name="Change timezone: America/Chicago").click()
@@ -164,9 +170,32 @@ def test_invalid_detection_falls_back_to_america_chicago(
     expect(dialog.get_by_role("button", name="Use America/Chicago")).to_be_visible()
 
 
-def test_public_calendar_has_no_axe_violations(page: Page, static_site_server: str) -> None:
-    page.add_init_script(SAVED_ZONE_SCRIPT)
+def test_invalid_saved_timezone_falls_back_safely(page: Page, static_site_server: str) -> None:
+    page.add_init_script("localStorage.setItem('flagwatch.timeZone', 'Not/AZone')")
     page.goto(f"{static_site_server}/?month=2026-08")
+
+    dialog = page.get_by_role("dialog", name="Confirm timezone")
+    expect(dialog.get_by_text("America/Chicago", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="August 2026")).to_be_visible()
+
+
+def test_browser_back_restores_previous_month_and_closes_event(
+    page: Page, static_site_server: str
+) -> None:
+    _open_august(page, static_site_server)
+    page.get_by_role("button", name="Next month").click()
+    expect(page.get_by_role("heading", name="September 2026")).to_be_visible()
+    page.go_back()
+    expect(page.get_by_role("heading", name="August 2026")).to_be_visible()
+
+    page.get_by_role("button", name="Midwest Signal CTF", exact=True).first.click()
+    expect(page.get_by_role("dialog", name="Midwest Signal CTF")).to_be_visible()
+    page.go_back()
+    expect(page.get_by_role("dialog", name="Midwest Signal CTF")).not_to_be_visible()
+
+
+def test_public_calendar_has_no_axe_violations(page: Page, static_site_server: str) -> None:
+    _open_august(page, static_site_server)
 
     results = Axe().run(page)
 
