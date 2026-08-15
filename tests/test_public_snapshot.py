@@ -50,9 +50,7 @@ def test_build_public_snapshot_exposes_display_facts_without_internal_data(tmp_p
         ),
     )
 
-    snapshot = build_public_snapshot(
-        database, generated_at=datetime(2026, 8, 14, 12, tzinfo=UTC)
-    )
+    snapshot = build_public_snapshot(database, generated_at=datetime(2026, 8, 14, 12, tzinfo=UTC))
     payload = snapshot.model_dump_json()
 
     assert snapshot.generated_at == datetime(2026, 8, 14, 12, tzinfo=UTC)

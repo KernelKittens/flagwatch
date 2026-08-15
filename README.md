@@ -1,6 +1,6 @@
 # Flagwatch
 
-Flagwatch is a private CTF research board. It imports upcoming events from CTFtime, reads reachable official rules, converts times to Central time, and keeps cited AI-policy evidence beside the useful event facts.
+Flagwatch imports upcoming events from CTFtime, reads reachable official rules, and keeps cited AI-policy evidence beside the useful event facts. Its public surface is a read-only month calendar. The local operator dashboard remains private.
 
 Every imported event remains visible. Alert previews are created only when the rules confirm that AI-assisted solving is allowed. A ban on autonomous solvers is fine. A ban on AI-assisted challenge solving suppresses the alert. Missing or conflicting rules do too.
 
@@ -18,6 +18,16 @@ uv run flagwatch serve
 Open `http://127.0.0.1:4814`. The dashboard can also run a sync from its **Sync now** button. A full sync may take a few minutes because official event sites are fetched one at a time with network safety checks.
 
 The SQLite database defaults to `data/flagwatch.db`. Override it with `--database` on any command or with `FLAGWATCH_DATABASE_PATH`.
+
+The public calendar lives in `site/`. Its browser timezone prompt defaults to America/Chicago when detection is unavailable. During local static-site development, serve the folder and provide `GET /api/events` using the public snapshot contract.
+
+## Azure deployment
+
+The public deployment uses its own `rg-flagwatch-web-prod` resource group in Central US. Azure Static Web Apps serves the calendar. A Python 3.13 Flex Consumption Function refreshes a private Blob-backed database every six hours and exposes only sanitized event JSON.
+
+Run `scripts/deploy-azure.ps1` from an authenticated Azure CLI session. The script validates tests and Bicep before creating resources, seeds the last-good snapshot, sets a $10 monthly budget alert, and returns the site and API URLs. It never changes the existing CTF Discord bot resource group.
+
+Notifications and model-provider credentials are not deployed. The Azure refresh keeps alert generation and delivery disabled.
 
 ## AI-policy analysis
 

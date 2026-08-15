@@ -1,4 +1,7 @@
 .worktrees/
+.deploy/
+*.zip
+.superpowers/
 .venv/
 __pycache__/
 .pytest_cache/
