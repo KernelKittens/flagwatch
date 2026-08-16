@@ -1,4 +1,8 @@
 {
+  "routes": [
+    { "route": "/accessibility", "rewrite": "/accessibility/index.html" },
+    { "route": "/accessibility/", "rewrite": "/accessibility/index.html" }
+  ],
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["/app.css", "/app.js", "/config.js", "/api/*"]

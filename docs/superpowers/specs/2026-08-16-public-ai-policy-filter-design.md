@@ -14,7 +14,7 @@ The public snapshot includes these policies:
 - `ai_assisted`
 - `unknown`, including conflicting or stale analysis
 
-It excludes `human_only`.
+It excludes current, non-conflicting `human_only` findings. A stale or conflicting retained `human_only` finding is public as unverified because it is no longer a confirmed current ban.
 
 This pass does not enable Discord, add reminder scheduling, publish the repository, or add an MIT license.
 
@@ -24,7 +24,7 @@ Add a short note above the calendar: "Events with a confirmed ban on all AI use 
 
 ## Verification
 
-- A focused snapshot test proves `human_only` events are absent while AI-assisted and unknown events remain.
+- A focused snapshot test proves confirmed `human_only` events are absent while AI-assisted, unknown, stale, and conflicting events remain.
 - The full Python test suite, Ruff, formatting check, and strict mypy pass.
 - Browser tests and the accessibility audit cover the changed public page.
 

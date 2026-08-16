@@ -2,7 +2,7 @@
 
 Flagwatch imports upcoming events from CTFtime, reads reachable official rules, and keeps cited AI-policy evidence beside the useful event facts. Its public surface is a read-only month calendar. The local operator dashboard remains private.
 
-Every imported event remains visible. Alert previews are created only when the rules confirm that AI-assisted solving is allowed. A ban on autonomous solvers is fine. A ban on AI-assisted challenge solving suppresses the alert. Missing or conflicting rules do too.
+The public calendar omits events whose confirmed rules ban all AI-assisted challenge work. A ban on autonomous solvers alone is fine. Missing or conflicting rules remain visible as unverified and never trigger an alert. The private operator data keeps every imported event and its evidence for review.
 
 ## Run it locally
 

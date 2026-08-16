@@ -100,5 +100,10 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
             categories=view.facts.categories,
         )
         for view in database.list_events()
+        if (
+            view.facts.ai_policy is not AiPolicy.HUMAN_ONLY
+            or view.facts.analysis_stale
+            or view.facts.ai_policy_conflicting
+        )
     ]
     return PublicSnapshot(generated_at=generated_at, events=events)

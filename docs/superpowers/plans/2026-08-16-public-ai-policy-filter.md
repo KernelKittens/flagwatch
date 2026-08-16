@@ -4,14 +4,15 @@
 
 **Goal:** Hide confirmed full-AI-ban CTFs from Flagwatch's public calendar while retaining autonomous-solver-only and unverified events.
 
-**Architecture:** Filter `human_only` records at the public snapshot boundary. Keep the private database unchanged, and explain the public rule in static calendar copy.
+**Architecture:** Filter current, non-conflicting `human_only` records at the public snapshot boundary. Keep the private database unchanged, and explain the public rule in static calendar copy.
 
 **Tech Stack:** Python 3.13, Pydantic, pytest, vanilla HTML, Playwright, axe.
 
 ## Global Constraints
 
 - `ai_native`, `ai_assisted`, and `unknown` remain public.
-- `human_only` is private and omitted from the public snapshot.
+- Current, non-conflicting `human_only` is private and omitted from the public snapshot.
+- Stale or conflicting retained policy is public as unverified, even when its last policy value was `human_only`.
 - Unknown, conflicting, or stale policy never triggers an alert.
 - Discord delivery, reminder scheduling, licensing, and publication stay disabled.
 
@@ -25,11 +26,11 @@
 
 **Interfaces:**
 - Consumes: `Database.list_events()` and `AiPolicy`.
-- Produces: `build_public_snapshot(database, generated_at)` with `human_only` events omitted.
+- Produces: `build_public_snapshot(database, generated_at)` with confirmed current `human_only` events omitted.
 
 - [ ] **Step 1: Write the failing test**
 
-Add a test that stores AI-assisted, human-only, and unknown events, then asserts that the public snapshot returns only the AI-assisted and unknown keys.
+Add a test that stores AI-assisted, confirmed human-only, unknown, stale human-only, and conflicting human-only events, then asserts that only the confirmed current human-only key is omitted.
 
 - [ ] **Step 2: Run the focused test to verify it fails**
 
@@ -39,7 +40,7 @@ Expected: FAIL because the existing snapshot includes every stored event.
 
 - [ ] **Step 3: Add the minimal filter**
 
-Add `if view.facts.ai_policy is not AiPolicy.HUMAN_ONLY` to the public snapshot comprehension.
+Filter a record only when its policy is `AiPolicy.HUMAN_ONLY`, its analysis is current, and its evidence is not conflicting.
 
 - [ ] **Step 4: Run the focused and full tests**
 

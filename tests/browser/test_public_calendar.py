@@ -23,6 +23,14 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
     _open_august(page, static_site_server)
 
     expect(page.get_by_role("heading", name="August 2026")).to_be_visible()
+    expect(
+        page.get_by_text(
+            "Events with a confirmed ban on all AI use are omitted. "
+            "Unverified rules never trigger alerts.",
+            exact=True,
+        )
+    ).to_be_visible()
+    expect(page.get_by_text("No Models CTF")).to_have_count(0)
     headings = page.locator(".weekday")
     assert headings.all_text_contents() == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     expect(page.get_by_role("grid", name="Month calendar")).to_be_visible()
@@ -40,9 +48,9 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
     expect(page.locator('[data-date="2026-08-21"] .event-time').first).to_contain_text("10:00 AM")
 
     crowded = page.locator('[data-date="2026-08-22"]')
-    expect(crowded.get_by_role("button", name="2 more events")).to_be_visible()
-    crowded.get_by_role("button", name="2 more events").click()
-    assert crowded.locator(".event-chip").count() == 5
+    expect(crowded.get_by_role("button", name="1 more event")).to_be_visible()
+    crowded.get_by_role("button", name="1 more event").click()
+    assert crowded.locator(".event-chip").count() == 4
 
     page.get_by_role("button", name="Next month").click()
     expect(page.get_by_role("heading", name="September 2026")).to_be_visible()
@@ -196,6 +204,24 @@ def test_browser_back_restores_previous_month_and_closes_event(
 
 def test_public_calendar_has_no_axe_violations(page: Page, static_site_server: str) -> None:
     _open_august(page, static_site_server)
+
+    results = Axe().run(page)
+
+    assert results.violations_count == 0, results.generate_report()
+
+
+def test_accessibility_statement_is_linked_and_has_no_axe_violations(
+    page: Page, static_site_server: str
+) -> None:
+    _open_august(page, static_site_server)
+    page.get_by_role("link", name="Accessibility").click()
+
+    expect(page.get_by_role("heading", name="Accessibility", level=1)).to_be_visible()
+    expect(page.get_by_text(re.compile(r"48 hours"))).to_be_visible()
+    expect(
+        page.get_by_role("link", name="accessibility@kitsunetechnologies.org")
+    ).to_have_attribute("href", "mailto:accessibility@kitsunetechnologies.org")
+    expect(page.get_by_text(re.compile(r"public API"))).to_be_visible()
 
     results = Axe().run(page)
 

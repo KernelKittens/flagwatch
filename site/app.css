@@ -93,6 +93,19 @@ main {
   padding: clamp(18px, 3vw, 38px);
 }
 
+.site-footer {
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 0 clamp(18px, 3vw, 38px) 32px;
+}
+.site-footer a, .statement a { color: var(--accent-dark); }
+
+.statement { width: min(760px, 100%); }
+.statement h1 { margin-bottom: 24px; }
+.statement h2 { margin: 32px 0 8px; }
+.statement p, .statement li { color: var(--muted); line-height: 1.65; }
+.statement strong { color: var(--ink); }
+
 .calendar-shell {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -122,6 +135,7 @@ h1 { margin: 0; font-size: clamp(1.65rem, 3vw, 2.5rem); letter-spacing: -0.035em
 h2 { line-height: 1.15; }
 
 .month-controls { display: flex; gap: 8px; }
+.policy-note { margin: 0; padding: 0 30px 10px; color: var(--muted); }
 .status { margin: 0; padding: 0 30px 18px; color: var(--muted); }
 .status:empty { display: none; }
 
@@ -274,10 +288,12 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
   .brand small { display: none; }
   .timezone-button { max-width: 52%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   main { padding: 10px; }
+  .site-footer { padding: 10px 10px 24px; }
   .calendar-shell { border-radius: 0; }
   .calendar-toolbar { padding: 16px 12px 12px; align-items: stretch; flex-direction: column; }
   .month-controls { justify-content: space-between; }
   .month-controls button { flex: 1; }
+  .policy-note { padding: 0 12px 8px; }
   .status { padding: 0 12px 12px; }
   .weekday { padding: 8px 1px; font-size: 0.63rem; letter-spacing: 0; text-transform: none; }
   .calendar-cell { min-height: 58px; padding: 3px; }

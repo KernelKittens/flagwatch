@@ -86,3 +86,59 @@ def test_build_public_snapshot_rejects_non_http_policy_evidence_url(tmp_path):
 
     with pytest.raises(ValidationError, match="URL scheme should be 'http' or 'https'"):
         build_public_snapshot(database, generated_at=starts_at)
+
+
+def test_public_snapshot_omits_confirmed_full_ai_bans(tmp_path):
+    database = Database(tmp_path / "flagwatch.sqlite3")
+    database.initialize()
+    starts_at = datetime(2026, 8, 15, 18, tzinfo=UTC)
+
+    for source_id, policy in (
+        ("assisted", AiPolicy.AI_ASSISTED),
+        ("human-only", AiPolicy.HUMAN_ONLY),
+        ("unverified", AiPolicy.UNKNOWN),
+    ):
+        event = Event(
+            source="ctftime",
+            source_id=source_id,
+            title=f"{source_id} CTF",
+            official_url=f"https://example.test/{source_id}",
+            ctftime_url=f"https://ctftime.org/event/{source_id}",
+            starts_at=starts_at,
+            finishes_at=starts_at + timedelta(days=1),
+            online=True,
+        )
+        database.upsert_event(event)
+        database.save_facts(event.key, EventFacts(ai_policy=policy))
+
+    for source_id, facts in (
+        (
+            "stale-human-only",
+            EventFacts(ai_policy=AiPolicy.HUMAN_ONLY, analysis_stale=True),
+        ),
+        (
+            "conflicting-human-only",
+            EventFacts(ai_policy=AiPolicy.HUMAN_ONLY, ai_policy_conflicting=True),
+        ),
+    ):
+        event = Event(
+            source="ctftime",
+            source_id=source_id,
+            title=f"{source_id} CTF",
+            official_url=f"https://example.test/{source_id}",
+            ctftime_url=f"https://ctftime.org/event/{source_id}",
+            starts_at=starts_at,
+            finishes_at=starts_at + timedelta(days=1),
+            online=True,
+        )
+        database.upsert_event(event)
+        database.save_facts(event.key, facts)
+
+    snapshot = build_public_snapshot(database, generated_at=starts_at)
+
+    assert {event.event_key for event in snapshot.events} == {
+        "ctftime:assisted",
+        "ctftime:conflicting-human-only",
+        "ctftime:stale-human-only",
+        "ctftime:unverified",
+    }

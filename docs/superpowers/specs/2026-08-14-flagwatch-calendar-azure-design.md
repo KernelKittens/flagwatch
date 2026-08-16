@@ -28,7 +28,7 @@ The detail view shows:
 - AI status, explanation, exact evidence quote, and source link;
 - official event link, CTFtime link, and single-event ICS download.
 
-Unknown values remain visible as `Unknown`. AI-banned, unknown, conflicting, and stale events stay on the calendar. Only status color and text distinguish them.
+Unknown values remain visible as `Unknown`. Events with a confirmed `human_only` policy are omitted from the public snapshot and calendar. AI-native, AI-assisted, unknown, conflicting, and stale events remain visible. Unknown, conflicting, and stale events cannot trigger alerts.
 
 ## Timezone
 
@@ -36,7 +36,7 @@ On the first visit, JavaScript reads the browser's IANA timezone. This is more a
 
 ## Visual direction
 
-Use the approved clean-month direction. The surface is dark navy with thin grid lines, square corners, restrained cyan, amber, and coral status colors, and compact tabular labels. Cyan means AI allowed. Amber means unknown or stale. Coral means AI banned. Text always accompanies color.
+Use the approved clean-month direction. The surface is dark navy with thin grid lines, square corners, restrained cyan and amber status colors, and compact tabular labels. Cyan means AI allowed. Amber means unknown or stale. Text always accompanies color.
 
 ## Azure architecture
 
@@ -56,6 +56,7 @@ No notification delivery is deployed in this release. Existing notification code
 - Official source URLs retain SSRF and response-size protections.
 - Source text remains untrusted data.
 - Unknown, conflicting, or stale AI policy stays fail-closed.
+- Confirmed `human_only` events remain in private operator data for evidence and correction but never enter the public snapshot.
 - A failed refresh leaves the last successful snapshot online and marks affected evidence stale.
 - The public API exposes event facts and cited public evidence only. It never returns secrets, raw model responses, source payloads, sync failures, or notification configuration.
 - Function and storage credentials stay in managed identity or ignored local deployment state.
