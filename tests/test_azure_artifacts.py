@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
@@ -35,3 +36,10 @@ def test_deploy_script_enforces_function_and_safety_contract() -> None:
     assert "$env:SWA_CLI_DEPLOYMENT_TOKEN = $token" in script
     assert "--deployment-token $token" not in script
     assert "Write-Output $token" not in script
+
+
+def test_static_web_app_routes_are_unique_after_azure_normalization() -> None:
+    config = json.loads((ROOT / "site" / "staticwebapp.config.json").read_text(encoding="utf-8"))
+    routes = [route["route"].rstrip("/") or "/" for route in config.get("routes", [])]
+
+    assert len(routes) == len(set(routes))
