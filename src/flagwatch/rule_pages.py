@@ -40,9 +40,9 @@ def extract_readable_text(html: str) -> str:
         'meta[property="og:description"]',
         'meta[name="twitter:description"]',
     ):
-        element = soup.select_one(selector)
-        if element and element.get("content"):
-            value = re.sub(r"\s+", " ", str(element["content"])).strip()
+        metadata_tag = soup.select_one(selector)
+        if metadata_tag and metadata_tag.get("content"):
+            value = re.sub(r"\s+", " ", str(metadata_tag["content"])).strip()
             if value and value not in metadata:
                 metadata.append(value)
     return "\n".join(metadata)
