@@ -101,7 +101,13 @@ class GuardedFetcher:
             if len(response.content) > self.max_bytes:
                 raise ResponseTooLargeError("Source page exceeds the size limit")
             media_type = response.headers.get("content-type", "").split(";", 1)[0].lower()
-            if media_type not in {"text/html", "text/plain"}:
+            if media_type not in {
+                "text/html",
+                "text/plain",
+                "application/xml",
+                "text/xml",
+                "application/rss+xml",
+            }:
                 raise UnsupportedContentError(f"Unsupported source content type: {media_type}")
             raw_text = response.text
             if media_type == "text/html":

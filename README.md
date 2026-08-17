@@ -4,6 +4,8 @@ Flagwatch imports upcoming events from CTFtime, reads reachable official rules, 
 
 The public calendar omits events whose confirmed rules ban all AI-assisted challenge work. A ban on autonomous solvers alone is fine. Missing or conflicting rules remain visible as unverified and never trigger an alert. The private operator data keeps every imported event and its evidence for review.
 
+The scan strip reports the current source coverage instead of treating every HTTP 200 response as a successful rule scan. `Read` means Flagwatch found usable official text. `Limited` means a site responded but useful content was incomplete, blocked behind JavaScript, or one of its rule pages failed. `Failed` means the official site could not be reached. Limited, failed, conflicting, and stale scans never alert.
+
 ## Run it locally
 
 Flagwatch requires Python 3.13 and [uv](https://docs.astral.sh/uv/).
@@ -31,7 +33,7 @@ Notifications and model-provider credentials are not deployed. The Azure refresh
 
 ## AI-policy analysis
 
-The built-in rule parser handles explicit AI permissions and bans without sending rule text to a model. Optional model fallback runs only when the parser returns `unknown` and the source pages do not conflict.
+The built-in rule parser handles explicit AI permissions and bans without sending rule text to a model. It reads crawler-visible page content, useful page metadata, same-origin rule links, and bounded same-origin sitemap entries. Optional model fallback runs only when the parser returns `unknown` and the source pages do not conflict.
 
 Set these environment variables to enable the fallback:
 

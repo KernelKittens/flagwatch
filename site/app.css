@@ -122,6 +122,43 @@ main {
   gap: 18px;
 }
 
+.scan-summary {
+  display: grid;
+  grid-template-columns: 1.45fr repeat(4, minmax(120px, .8fr));
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: #05141d;
+}
+.scan-item {
+  min-height: 66px;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid var(--line);
+}
+.scan-item:last-child { border-right: 0; }
+.scan-item span {
+  color: var(--muted);
+  font: 750 0.64rem/1.25 "Cascadia Code", Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scan-item strong { margin-top: 5px; font-size: 0.96rem; }
+.scan-good strong { color: var(--accent-dark); }
+.scan-warn strong { color: #ffe08c; }
+.scan-refresh { position: relative; overflow: hidden; }
+.scan-refresh::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  bottom: 10px;
+  left: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.65;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: var(--accent-dark);
@@ -202,8 +239,10 @@ h2 { line-height: 1.15; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.event-chip[data-policy="banned"] { color: #ffe3e0; background: #552126; }
-.event-chip[data-policy="unknown"] { color: #fff2bf; background: #493d16; }
+.event-chip[data-verification="unverified"],
+.day-event[data-verification="unverified"] { color: #fff2bf; border-left: 3px solid var(--unknown); background: #493d16; }
+.event-chip[data-verification="verified"],
+.day-event[data-verification="verified"] { border-left: 3px solid var(--allowed); }
 .event-chip:hover, .day-event:hover { filter: brightness(0.96); }
 .more-events { padding: 5px 7px; color: var(--accent-dark); background: transparent; font-size: 0.75rem; font-weight: 750; }
 
@@ -252,6 +291,25 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
 .policy-banner.unknown { border-color: var(--unknown); background: #493d16; }
 .policy-banner strong { display: block; margin-bottom: 4px; }
 .evidence { margin: 14px 0 0; padding-left: 12px; border-left: 3px solid currentColor; }
+.scan-ledger { margin-top: 18px; border: 1px solid var(--line); background: #06141d; }
+.scan-ledger-heading { padding: 15px 16px 13px; border-bottom: 1px solid var(--line); }
+.scan-ledger-heading h3 { margin: 0; font-size: 1.2rem; }
+.scan-ledger ol { margin: 0; padding: 0; list-style: none; }
+.scan-ledger li {
+  padding: 11px 14px;
+  display: grid;
+  grid-template-columns: 26px minmax(120px, .55fr) 1.45fr;
+  gap: 9px;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+  font-size: 0.88rem;
+}
+.scan-ledger li:last-child { border-bottom: 0; }
+.scan-ledger li > span:last-child { color: var(--muted); line-height: 1.4; }
+.scan-mark { color: var(--accent-dark); font: 850 0.75rem/1.5 "Cascadia Code", Consolas, monospace; }
+.scan-mark.warn { color: var(--unknown); }
+.alert-decision { padding: 12px 14px; color: #dffbff; border-left: 3px solid var(--allowed); background: var(--accent-soft); }
+.alert-decision.warn { color: #fff2bf; border-left-color: var(--unknown); background: #3a3218; }
 .detail-grid { margin: 22px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .detail-item { padding: 12px; border: 1px solid var(--line); border-radius: 0; }
 .detail-item dt { color: var(--muted); font-size: 0.75rem; font-weight: 750; text-transform: uppercase; }
@@ -270,12 +328,15 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
 .noscript { margin: 20px; padding: 14px; border: 2px solid var(--banned); background: var(--surface); }
 
 .event-chip .event-name,
-.event-chip .event-time {
+.event-chip .event-time,
+.day-event .event-name,
+.day-event .event-time {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.event-chip .event-time {
+.event-chip .event-time,
+.day-event .event-time {
   margin-top: 2px;
   color: var(--muted);
   font-size: 0.66rem;
@@ -311,12 +372,22 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
     height: 4px;
     background: var(--allowed);
   }
-  .mobile-markers span[data-policy="banned"] { background: var(--banned); }
-  .mobile-markers span[data-policy="unknown"] { background: var(--unknown); }
+  .mobile-markers span[data-verification="unverified"] { background: var(--unknown); }
   .selected-day { display: block; }
   .detail-grid { grid-template-columns: 1fr; }
   .event-links { display: grid; }
   .dialog-actions { display: grid; }
+  .scan-summary { grid-template-columns: 1fr 1fr; }
+  .scan-refresh { grid-column: 1 / -1; }
+  .scan-item { min-height: 58px; border-bottom: 1px solid var(--line); }
+  .scan-ledger li { grid-template-columns: 24px 1fr; }
+  .scan-ledger li > span:last-child { grid-column: 2; }
+}
+
+@media (max-width: 420px) {
+  .scan-summary { grid-template-columns: 1fr; }
+  .scan-refresh { grid-column: auto; }
+  .scan-item { border-right: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
