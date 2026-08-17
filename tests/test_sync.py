@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from flagwatch.domain import AiPolicy, Event, EventFacts
+from flagwatch.domain import AiPolicy, Event, EventFacts, SourceScanStatus
 from flagwatch.fetching import FetchedPage
 from flagwatch.sources import EventBatch
 from flagwatch.storage import Database
@@ -268,4 +268,114 @@ def test_one_event_analysis_failure_does_not_block_later_events(tmp_path):
     assert len(database.list_events()) == 2
     assert any(
         "Event bad" in failure and "analysis crashed" in failure for failure in report.failures
+    )
+
+
+def test_empty_javascript_shell_is_limited_not_successful(tmp_path):
+    class ShellFetcher:
+        def get_page(self, url: str) -> FetchedPage:
+            if url.endswith("sitemap.xml"):
+                return FetchedPage(url=url, text="not xml", html=None)
+            return FetchedPage(
+                url=url,
+                text="BrunnerCTF 2026",
+                html='<html><body><div id="app"></div></body></html>',
+            )
+
+    database = Database(tmp_path / "flagwatch.db")
+    database.initialize()
+    event = _event("shell")
+    service = SyncService(database, FakeSource(event, EventFacts()), ShellFetcher())
+
+    service.run()
+    facts = database.list_events()[0].facts
+
+    assert facts.source_scan_status is SourceScanStatus.LIMITED
+    assert facts.analysis_stale is True
+    assert facts.source_pages_checked == 1
+    assert facts.source_rule_pages_found == 0
+
+
+def test_sitemap_rule_page_is_discovered_and_analyzed(tmp_path):
+    class SitemapFetcher:
+        def get_page(self, url: str) -> FetchedPage:
+            if url.endswith("sitemap.xml"):
+                return FetchedPage(
+                    url=url,
+                    text=(
+                        "<urlset><url><loc>https://ctf.example/rules</loc></url></urlset>"
+                    ),
+                    html=None,
+                )
+            if url.endswith("/rules"):
+                return FetchedPage(
+                    url=url,
+                    text="Interactive AI assistance is allowed for every challenge.",
+                    html=None,
+                )
+            return FetchedPage(
+                url=url,
+                text="A public online security competition with teams from around the world.",
+                html="<html><body><main>Event home</main></body></html>",
+            )
+
+    database = Database(tmp_path / "flagwatch.db")
+    database.initialize()
+    event = _event("sitemap")
+    service = SyncService(database, FakeSource(event, EventFacts()), SitemapFetcher())
+
+    service.run()
+    facts = database.list_events()[0].facts
+
+    assert facts.ai_policy is AiPolicy.AI_ASSISTED
+    assert facts.source_scan_status is SourceScanStatus.READ
+    assert facts.analysis_stale is False
+    assert facts.source_pages_checked == 2
+    assert facts.source_rule_pages_found == 1
+
+
+def test_optional_rule_failure_keeps_current_homepage_facts_but_fails_closed(tmp_path):
+    class PartialFetcher:
+        def get_page(self, url: str) -> FetchedPage:
+            from flagwatch.fetching import FetchError
+
+            if url.endswith("sitemap.xml"):
+                return FetchedPage(url=url, text="not xml", html=None)
+            if url.endswith("/rules"):
+                raise FetchError("rules temporarily unavailable")
+            return FetchedPage(
+                url=url,
+                text=(
+                    "Interactive AI assistance is allowed for challenge solving. "
+                    "Read the complete competition rules before playing."
+                ),
+                html='<html><body><a href="/rules">Rules</a></body></html>',
+            )
+
+    database = Database(tmp_path / "flagwatch.db")
+    database.initialize()
+    event = _event("partial")
+    service = SyncService(database, FakeSource(event, EventFacts()), PartialFetcher())
+
+    report = service.run()
+    facts = database.list_events()[0].facts
+
+    assert report.queued == 0
+    assert facts.ai_policy is AiPolicy.AI_ASSISTED
+    assert facts.source_scan_status is SourceScanStatus.LIMITED
+    assert facts.analysis_stale is True
+    assert "rules temporarily unavailable" in (facts.analysis_error or "")
+
+
+def _event(source_id: str) -> Event:
+    start = datetime(2026, 9, 5, 14, tzinfo=UTC)
+    return Event(
+        source="ctftime",
+        source_id=source_id,
+        title=f"{source_id.title()} CTF",
+        official_url="https://ctf.example/",
+        ctftime_url=f"https://ctftime.org/event/{source_id}/",
+        starts_at=start,
+        finishes_at=start + timedelta(hours=24),
+        online=True,
     )
