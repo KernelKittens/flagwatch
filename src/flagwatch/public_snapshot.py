@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_serializer, field_validator
 
-from flagwatch.domain import AiPolicy, ScheduleMode
+from flagwatch.domain import AiPolicy, ScheduleMode, SourceScanStatus
 from flagwatch.storage import Database
 
 
@@ -37,6 +37,11 @@ class PublicEvent(BaseModel):
     prize_summary: str | None
     registration_status: str | None
     categories: list[str]
+    source_scan_status: SourceScanStatus
+    source_scan_reason: str
+    source_pages_checked: int
+    source_rule_pages_found: int
+    source_checked_at: datetime | None
 
     @field_validator("starts_at", "finishes_at")
     @classmethod
@@ -49,11 +54,26 @@ class PublicEvent(BaseModel):
     def serialize_timestamp(self, value: datetime) -> str:
         return value.isoformat().replace("+00:00", "Z")
 
+    @field_serializer("source_checked_at", when_used="json")
+    def serialize_optional_timestamp(self, value: datetime | None) -> str | None:
+        if value is None:
+            return None
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+class PublicScanSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    sources_read: int
+    sources_need_recheck: int
+    policies_confirmed: int
+
 
 class PublicSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     generated_at: datetime
+    scan_summary: PublicScanSummary
     events: list[PublicEvent]
 
     @field_validator("generated_at")
@@ -98,6 +118,11 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
             prize_summary=view.facts.prize_summary,
             registration_status=view.facts.registration_status,
             categories=view.facts.categories,
+            source_scan_status=view.facts.source_scan_status,
+            source_scan_reason=view.facts.source_scan_reason,
+            source_pages_checked=view.facts.source_pages_checked,
+            source_rule_pages_found=view.facts.source_rule_pages_found,
+            source_checked_at=view.facts.source_checked_at,
         )
         for view in database.list_events()
         if (
@@ -106,4 +131,18 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
             or view.facts.ai_policy_conflicting
         )
     ]
-    return PublicSnapshot(generated_at=generated_at, events=events)
+    summary = PublicScanSummary(
+        sources_read=sum(
+            event.source_scan_status is SourceScanStatus.READ for event in events
+        ),
+        sources_need_recheck=sum(
+            event.source_scan_status is not SourceScanStatus.READ for event in events
+        ),
+        policies_confirmed=sum(
+            event.ai_policy in {AiPolicy.AI_NATIVE, AiPolicy.AI_ASSISTED}
+            and not event.analysis_stale
+            and not event.ai_policy_conflicting
+            for event in events
+        ),
+    )
+    return PublicSnapshot(generated_at=generated_at, scan_summary=summary, events=events)

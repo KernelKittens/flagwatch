@@ -1,5 +1,10 @@
 {
   "generated_at": "2026-08-14T18:00:00Z",
+  "scan_summary": {
+    "sources_read": 2,
+    "sources_need_recheck": 2,
+    "policies_confirmed": 1
+  },
   "events": [
     {
       "event_key": "ctftime:signal-2026",
@@ -26,7 +31,12 @@
       "schedule_mode": "fixed",
       "prize_summary": "$2,500 prize pool",
       "registration_status": "Open",
-      "categories": ["web", "crypto"]
+      "categories": ["web", "crypto"],
+      "source_scan_status": "read",
+      "source_scan_reason": "Official site and 1 rule page read",
+      "source_pages_checked": 2,
+      "source_rule_pages_found": 1,
+      "source_checked_at": "2026-08-14T17:55:00Z"
     },
     {
       "event_key": "ctftime:unknown-policy",
@@ -53,7 +63,12 @@
       "schedule_mode": "unknown",
       "prize_summary": null,
       "registration_status": null,
-      "categories": []
+      "categories": [],
+      "source_scan_status": "read",
+      "source_scan_reason": "Official site read; no dedicated rules page found",
+      "source_pages_checked": 1,
+      "source_rule_pages_found": 0,
+      "source_checked_at": "2026-08-14T17:54:00Z"
     },
     {
       "event_key": "ctftime:stale-rules",
@@ -80,7 +95,12 @@
       "schedule_mode": "staggered",
       "prize_summary": "Hardware prizes",
       "registration_status": "Closed",
-      "categories": ["hardware"]
+      "categories": ["hardware"],
+      "source_scan_status": "failed",
+      "source_scan_reason": "Official site could not be reached",
+      "source_pages_checked": 0,
+      "source_rule_pages_found": 0,
+      "source_checked_at": "2026-08-14T17:53:00Z"
     },
     {
       "event_key": "ctftime:conflict",
@@ -107,7 +127,12 @@
       "schedule_mode": "fixed",
       "prize_summary": "$500",
       "registration_status": "Waitlist",
-      "categories": ["misc"]
+      "categories": ["misc"],
+      "source_scan_status": "limited",
+      "source_scan_reason": "Some official source pages could not be read",
+      "source_pages_checked": 2,
+      "source_rule_pages_found": 1,
+      "source_checked_at": "2026-08-14T17:52:00Z"
     }
   ]
 }
