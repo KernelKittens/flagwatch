@@ -22,6 +22,13 @@ class ScheduleMode(StrEnum):
     UNKNOWN = "unknown"
 
 
+class SourceScanStatus(StrEnum):
+    READ = "read"
+    LIMITED = "limited"
+    FAILED = "failed"
+    NOT_CHECKED = "not_checked"
+
+
 class Event(BaseModel):
     source: str
     source_id: str
@@ -67,6 +74,11 @@ class EventFacts(BaseModel):
     analyzed_at: datetime | None = None
     analysis_stale: bool = False
     analysis_error: str | None = None
+    source_scan_status: SourceScanStatus = SourceScanStatus.NOT_CHECKED
+    source_scan_reason: str = "Official source has not been checked yet"
+    source_pages_checked: int = Field(default=0, ge=0)
+    source_rule_pages_found: int = Field(default=0, ge=0)
+    source_checked_at: datetime | None = None
 
 
 class Criteria(BaseModel):

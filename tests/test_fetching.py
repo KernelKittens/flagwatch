@@ -51,3 +51,24 @@ def test_rejects_oversized_response():
 
     with pytest.raises(ResponseTooLargeError):
         fetcher.get_text("https://rules.example/")
+
+
+def test_accepts_xml_sitemaps_as_plain_text():
+    xml = b'<?xml version="1.0"?><urlset><url><loc>https://rules.example/rules</loc></url></urlset>'
+    fetcher = GuardedFetcher(
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    headers={"content-type": "application/xml"},
+                    content=xml,
+                )
+            )
+        ),
+        resolver=lambda _host: ["93.184.216.34"],
+    )
+
+    page = fetcher.get_page("https://rules.example/sitemap.xml")
+
+    assert page.text.startswith('<?xml version="1.0"?>')
+    assert page.html is None
