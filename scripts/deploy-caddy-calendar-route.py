@@ -4,6 +4,7 @@ import fcntl
 import json
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 from datetime import UTC, datetime
@@ -78,6 +79,7 @@ def run() -> None:
 
         stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         backup = CONFIG.with_name(f"caddy.json.bak-flagwatch-calendar-{stamp}")
+        config_metadata = CONFIG.stat()
         shutil.copy2(CONFIG, backup)
         routes.insert(0, calendar_route())
 
@@ -97,6 +99,8 @@ def run() -> None:
             )
             if validation.returncode != 0:
                 raise RuntimeError("Caddy rejected the candidate configuration.")
+            os.chmod(candidate, stat.S_IMODE(config_metadata.st_mode))
+            os.chown(candidate, config_metadata.st_uid, config_metadata.st_gid)
             os.replace(candidate, CONFIG)
             reload_result = subprocess.run(
                 ["systemctl", "reload", "caddy"],

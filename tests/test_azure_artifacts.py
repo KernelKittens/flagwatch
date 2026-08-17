@@ -45,3 +45,17 @@ def test_static_web_app_routes_are_unique_after_azure_normalization() -> None:
     routes = [route["route"].rstrip("/") or "/" for route in config.get("routes", [])]
 
     assert len(routes) == len(set(routes))
+
+
+def test_caddy_route_deploy_preserves_live_config_identity_before_replace() -> None:
+    script = (ROOT / "scripts" / "deploy-caddy-calendar-route.py").read_text(encoding="utf-8")
+
+    stat_index = script.index("config_metadata = CONFIG.stat()")
+    chmod_index = script.index("os.chmod(candidate, stat.S_IMODE(config_metadata.st_mode))")
+    chown_index = script.index(
+        "os.chown(candidate, config_metadata.st_uid, config_metadata.st_gid)"
+    )
+    replace_index = script.index("os.replace(candidate, CONFIG)")
+
+    assert stat_index < chmod_index < replace_index
+    assert stat_index < chown_index < replace_index
