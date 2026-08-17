@@ -302,9 +302,7 @@ def test_sitemap_rule_page_is_discovered_and_analyzed(tmp_path):
             if url.endswith("sitemap.xml"):
                 return FetchedPage(
                     url=url,
-                    text=(
-                        "<urlset><url><loc>https://ctf.example/rules</loc></url></urlset>"
-                    ),
+                    text=("<urlset><url><loc>https://ctf.example/rules</loc></url></urlset>"),
                     html=None,
                 )
             if url.endswith("/rules"):

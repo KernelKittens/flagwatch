@@ -132,9 +132,7 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
         )
     ]
     summary = PublicScanSummary(
-        sources_read=sum(
-            event.source_scan_status is SourceScanStatus.READ for event in events
-        ),
+        sources_read=sum(event.source_scan_status is SourceScanStatus.READ for event in events),
         sources_need_recheck=sum(
             event.source_scan_status is not SourceScanStatus.READ for event in events
         ),

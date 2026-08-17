@@ -105,7 +105,9 @@ def test_direct_event_link_exposes_all_details_and_closes(
         "download", "midwest-signal-ctf.ics"
     )
     scan_ledger = dialog.get_by_role("region", name="What the scan found")
-    expect(scan_ledger.get_by_text("Official site and 1 rule page read", exact=True)).to_be_visible()
+    expect(
+        scan_ledger.get_by_text("Official site and 1 rule page read", exact=True)
+    ).to_be_visible()
     expect(scan_ledger.get_by_text("Verified, alerts allowed", exact=True)).to_be_visible()
 
     page.keyboard.press("Escape")
