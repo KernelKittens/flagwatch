@@ -34,6 +34,11 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
     headings = page.locator(".weekday")
     assert headings.all_text_contents() == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     expect(page.get_by_role("grid", name="Month calendar")).to_be_visible()
+    scan_summary = page.get_by_role("region", name="Latest source scan")
+    expect(scan_summary.get_by_text("4 CTFs", exact=True)).to_be_visible()
+    expect(scan_summary.get_by_text("2 sources", exact=True)).to_be_visible()
+    expect(scan_summary.get_by_text("2 need recheck", exact=True)).to_be_visible()
+    expect(scan_summary.get_by_text("1 confirmed", exact=True)).to_be_visible()
     assert page.get_by_role("columnheader").count() == 7
     assert page.get_by_role("gridcell").count() == 42
     cells = page.locator(".calendar-cell")
@@ -99,6 +104,9 @@ def test_direct_event_link_exposes_all_details_and_closes(
     expect(dialog.get_by_role("link", name="Download ICS")).to_have_attribute(
         "download", "midwest-signal-ctf.ics"
     )
+    scan_ledger = dialog.get_by_role("region", name="What the scan found")
+    expect(scan_ledger.get_by_text("Official site and 1 rule page read", exact=True)).to_be_visible()
+    expect(scan_ledger.get_by_text("Verified, alerts allowed", exact=True)).to_be_visible()
 
     page.keyboard.press("Escape")
     expect(dialog).not_to_be_visible()

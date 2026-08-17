@@ -33,6 +33,14 @@
           </div>
         </div>
 
+        <section class="scan-summary" id="scan-summary" aria-label="Latest source scan">
+          <div class="scan-item scan-refresh"><span>Latest sweep</span><strong id="scan-updated">Loading</strong></div>
+          <div class="scan-item"><span>Upcoming</span><strong id="scan-events">0 CTFs</strong></div>
+          <div class="scan-item scan-good"><span>Sources read</span><strong id="scan-sources">0 sources</strong></div>
+          <div class="scan-item scan-warn"><span>Source status</span><strong id="scan-recheck">0 need recheck</strong></div>
+          <div class="scan-item scan-warn"><span>AI policy</span><strong id="scan-confirmed">0 confirmed</strong></div>
+        </section>
+
         <p class="policy-note">Events with a confirmed ban on all AI use are omitted. Unverified rules never trigger alerts.</p>
 
         <p class="status" id="status" role="status">Loading CTFs...</p>

@@ -7,6 +7,8 @@
   const initialZone = savedZone || detectZone();
   const state = {
     events: [],
+    scanSummary: null,
+    generatedAt: null,
     month: monthFromUrl(initialZone),
     timeZone: initialZone,
     selectedDate: null,
@@ -28,6 +30,11 @@
     eventDialog: document.querySelector("#event-dialog"),
     eventTitle: document.querySelector("#event-title"),
     eventBody: document.querySelector("#event-detail-body"),
+    scanUpdated: document.querySelector("#scan-updated"),
+    scanEvents: document.querySelector("#scan-events"),
+    scanSources: document.querySelector("#scan-sources"),
+    scanRecheck: document.querySelector("#scan-recheck"),
+    scanConfirmed: document.querySelector("#scan-confirmed"),
   };
 
   function detectZone() {
@@ -222,7 +229,7 @@
         markers.setAttribute("aria-label", `${events.length} event${events.length === 1 ? "" : "s"}`);
         events.slice(0, 5).forEach((event) => {
           const marker = document.createElement("span");
-          marker.dataset.policy = event.ai_policy;
+          marker.dataset.verification = verificationState(event);
           marker.setAttribute("aria-hidden", "true");
           markers.append(marker);
         });
@@ -237,7 +244,7 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = className;
-    button.dataset.policy = event.ai_policy;
+    button.dataset.verification = verificationState(event);
     const title = document.createElement("span");
     title.className = "event-name";
     title.textContent = event.title;
@@ -285,11 +292,23 @@
     if (event.ai_policy_conflicting) return "Conflicting AI rules";
     if (event.analysis_stale) return "AI policy needs rechecking";
     return {
+      ai_native: "AI native",
       ai_assisted: "AI assisted",
-      banned: "AI banned",
+      human_only: "AI-assisted solving prohibited",
       unknown: "AI policy unknown",
-      automated_only_banned: "Automated solvers banned",
     }[event.ai_policy] || "AI policy unknown";
+  }
+
+  function policyIsConfirmed(event) {
+    return (
+      ["ai_native", "ai_assisted", "human_only"].includes(event.ai_policy) &&
+      !event.analysis_stale &&
+      !event.ai_policy_conflicting
+    );
+  }
+
+  function verificationState(event) {
+    return policyIsConfirmed(event) ? "verified" : "unverified";
   }
 
   function formatDateTime(value) {
@@ -351,9 +370,39 @@
   }
 
   function policyClass(event) {
-    if (event.ai_policy === "banned") return "banned";
-    if (event.ai_policy === "unknown") return "unknown";
+    if (event.ai_policy === "human_only" && policyIsConfirmed(event)) return "banned";
+    if (!policyIsConfirmed(event)) return "unknown";
     return "";
+  }
+
+  function scanLedger(event) {
+    const sourceState = event.source_scan_status || "not_checked";
+    const sourceMark = sourceState === "read" ? "OK" : "!";
+    const sourceClass = sourceState === "read" ? "" : " warn";
+    const rulesFound = Number(event.source_rule_pages_found || 0);
+    const rulesText = rulesFound
+      ? `${rulesFound} dedicated rule page${rulesFound === 1 ? "" : "s"} read.`
+      : "No dedicated rules page found.";
+    const alertAllowed = ["ai_native", "ai_assisted"].includes(event.ai_policy) &&
+      policyIsConfirmed(event);
+    const decision = alertAllowed ? "Verified, alerts allowed" : "Unverified, no alert";
+    const decisionDetail = alertAllowed
+      ? "Current official evidence confirms compatible AI use."
+      : "Flagwatch will recheck this event and will not notify Discord without current official evidence.";
+    return `
+      <section class="scan-ledger" aria-labelledby="source-scan-title">
+        <div class="scan-ledger-heading">
+          <p class="eyebrow">Source check</p>
+          <h3 id="source-scan-title">What the scan found</h3>
+        </div>
+        <ol>
+          <li><span class="scan-mark">OK</span><strong>CTFtime record</strong><span>Schedule and official URL imported.</span></li>
+          <li><span class="scan-mark${sourceClass}">${sourceMark}</span><strong>Official source</strong><span>${escapeHtml(display(event.source_scan_reason, "Official source has not been checked yet"))}</span></li>
+          <li><span class="scan-mark${rulesFound ? "" : " warn"}">${rulesFound ? "OK" : "!"}</span><strong>Rules discovery</strong><span>${escapeHtml(rulesText)}</span></li>
+          <li><span class="scan-mark${alertAllowed ? "" : " warn"}">${alertAllowed ? "OK" : "!"}</span><strong>Alert decision</strong><span>${escapeHtml(decisionDetail)}</span></li>
+        </ol>
+        <div class="alert-decision${alertAllowed ? "" : " warn"}"><strong>${escapeHtml(decision)}</strong></div>
+      </section>`;
   }
 
   function scheduleLabel(event) {
@@ -395,6 +444,7 @@
         <span>${escapeHtml(display(event.ai_policy_reason, "No current AI rule was found."))}</span>
         ${event.ai_policy_evidence ? `<p class="evidence">${escapeHtml(event.ai_policy_evidence)}</p>` : ""}
       </section>
+      ${scanLedger(event)}
       <dl class="detail-grid">${details.map(([term, value]) => `<div class="detail-item"><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>
       <nav class="event-links" aria-label="Event links">
         <a href="${escapeHtml(event.official_url)}" target="_blank" rel="noopener noreferrer">Official event</a>
@@ -448,7 +498,10 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       state.events = Array.isArray(payload.events) ? payload.events : [];
-      elements.status.textContent = `${state.events.length} CTF${state.events.length === 1 ? "" : "s"} in this feed. Times shown in ${state.timeZone}.`;
+      state.scanSummary = payload.scan_summary || null;
+      state.generatedAt = payload.generated_at || null;
+      renderScanSummary();
+      elements.status.textContent = `Times shown in ${state.timeZone}.`;
       renderCalendar();
       const event = eventFromUrl();
       if (event) openEvent(event, false);
@@ -456,6 +509,26 @@
       elements.status.textContent = "The calendar feed is unavailable right now. Please try again shortly.";
       renderCalendar();
     }
+  }
+
+  function renderScanSummary() {
+    const summary = state.scanSummary || {
+      sources_read: state.events.filter((event) => event.source_scan_status === "read").length,
+      sources_need_recheck: state.events.filter(
+        (event) => event.source_scan_status !== "read",
+      ).length,
+      policies_confirmed: state.events.filter(
+        (event) => ["ai_native", "ai_assisted"].includes(event.ai_policy) &&
+          policyIsConfirmed(event),
+      ).length,
+    };
+    elements.scanUpdated.textContent = state.generatedAt
+      ? formatDateTime(state.generatedAt)
+      : "Not available";
+    elements.scanEvents.textContent = `${state.events.length} CTF${state.events.length === 1 ? "" : "s"}`;
+    elements.scanSources.textContent = `${summary.sources_read} source${summary.sources_read === 1 ? "" : "s"}`;
+    elements.scanRecheck.textContent = `${summary.sources_need_recheck} need recheck`;
+    elements.scanConfirmed.textContent = `${summary.policies_confirmed} confirmed`;
   }
 
   document.querySelector("#previous-month").addEventListener("click", () => setMonth(-1));
