@@ -254,17 +254,24 @@ try {
     Remove-Item Env:SWA_CLI_DEPLOYMENT_TOKEN -ErrorAction SilentlyContinue
     if ($LASTEXITCODE -ne 0) { throw 'Static site deployment failed.' }
 
+    $brandedOrigin = 'https://calendar.kitsunetechnologies.org'
+    $requiredCorsOrigins = @("https://$swaHostname", $brandedOrigin)
     $cors = Invoke-AzJson functionapp cors show --resource-group $ResourceGroup --name $functionName
-    foreach ($origin in @($cors.allowedOrigins)) {
+    foreach ($origin in @($cors.allowedOrigins | Where-Object { $_ -notin $requiredCorsOrigins })) {
         & az functionapp cors remove --resource-group $ResourceGroup --name $functionName `
             --allowed-origins $origin --output none
         if ($LASTEXITCODE -ne 0) { throw "Could not remove stale CORS origin: $origin" }
     }
-    & az functionapp cors add --resource-group $ResourceGroup --name $functionName `
-        --allowed-origins "https://$swaHostname" --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Function CORS configuration failed.' }
+    foreach ($origin in $requiredCorsOrigins) {
+        if ($origin -in @($cors.allowedOrigins)) { continue }
+        & az functionapp cors add --resource-group $ResourceGroup --name $functionName `
+            --allowed-origins $origin --output none
+        if ($LASTEXITCODE -ne 0) { throw "Function CORS configuration failed: $origin" }
+    }
     $verifiedCors = Invoke-AzJson functionapp cors show --resource-group $ResourceGroup --name $functionName
-    if (@($verifiedCors.allowedOrigins).Count -ne 1 -or $verifiedCors.allowedOrigins[0] -ne "https://$swaHostname") {
+    $actualCorsOrigins = @($verifiedCors.allowedOrigins | Sort-Object)
+    $expectedCorsOrigins = @($requiredCorsOrigins | Sort-Object)
+    if (($actualCorsOrigins -join '|') -ne ($expectedCorsOrigins -join '|')) {
         throw 'Function CORS is not restricted to the deployed calendar.'
     }
 
