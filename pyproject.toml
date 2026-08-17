@@ -1,8 +1,9 @@
 [project]
 name = "flagwatch"
 version = "0.1.0"
-description = "Private CTF discovery, rule analysis, and alert dashboard"
+description = "CTF discovery, rule analysis, and fail-closed alert dashboard"
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.13"
 dependencies = [
   "beautifulsoup4>=4.13",
