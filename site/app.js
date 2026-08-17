@@ -375,6 +375,32 @@
     return "";
   }
 
+  function policyVerdict(event) {
+    const confirmed = policyIsConfirmed(event);
+    const eligible = confirmed && ["ai_native", "ai_assisted"].includes(event.ai_policy);
+    const checkedAt = event.source_checked_at
+      ? `Checked ${formatDateTime(event.source_checked_at)}`
+      : "Not checked yet";
+    const source = event.ai_policy_source
+      ? `<a class="policy-source" href="${escapeHtml(event.ai_policy_source)}" target="_blank" rel="noopener noreferrer">Read official AI rules</a>`
+      : "";
+    return `
+      <section class="policy-verdict ${policyClass(event)}" aria-labelledby="ai-rules-title">
+        <div class="policy-heading">
+          <p class="eyebrow">AI rules</p>
+          <span class="policy-status">${confirmed ? "Verified" : "Needs recheck"}</span>
+        </div>
+        <h3 id="ai-rules-title">${escapeHtml(policyLabel(event))}</h3>
+        <p class="policy-reason">${escapeHtml(display(event.ai_policy_reason, "No published AI rule was found."))}</p>
+        ${event.ai_policy_evidence ? `<blockquote>${escapeHtml(event.ai_policy_evidence)}</blockquote>` : ""}
+        <p class="policy-checked">${escapeHtml(checkedAt)}</p>
+        <div class="policy-actions">
+          ${source}
+          <strong>${eligible ? "Subscribed members can be pinged" : "No Discord alert"}</strong>
+        </div>
+      </section>`;
+  }
+
   function scanLedger(event) {
     const sourceState = event.source_scan_status || "not_checked";
     const sourceMark = sourceState === "read" ? "OK" : "!";
@@ -419,9 +445,6 @@
 
   function openEvent(event, updateHistory = true) {
     elements.eventTitle.textContent = event.title;
-    const evidenceLink = event.ai_policy_source
-      ? `<a href="${escapeHtml(event.ai_policy_source)}" target="_blank" rel="noopener noreferrer">AI policy source</a>`
-      : "";
     const details = [
       ["Starts", formatDateTime(event.starts_at)],
       ["Ends", formatDateTime(event.finishes_at)],
@@ -439,17 +462,12 @@
       ["Participants", display(event.participants)],
     ];
     elements.eventBody.innerHTML = `
-      <section class="policy-banner ${policyClass(event)}" aria-label="AI policy">
-        <strong>${escapeHtml(policyLabel(event))}</strong>
-        <span>${escapeHtml(display(event.ai_policy_reason, "No current AI rule was found."))}</span>
-        ${event.ai_policy_evidence ? `<p class="evidence">${escapeHtml(event.ai_policy_evidence)}</p>` : ""}
-      </section>
+      ${policyVerdict(event)}
       ${scanLedger(event)}
       <dl class="detail-grid">${details.map(([term, value]) => `<div class="detail-item"><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>
       <nav class="event-links" aria-label="Event links">
         <a href="${escapeHtml(event.official_url)}" target="_blank" rel="noopener noreferrer">Official event</a>
         <a href="${escapeHtml(event.ctftime_url)}" target="_blank" rel="noopener noreferrer">CTFtime listing</a>
-        ${evidenceLink}
         <a href="${icsLink(event)}" download="${slug(event.title)}.ics">Download ICS</a>
       </nav>`;
     if (updateHistory) updateUrl({event: event.event_key}, "push");
