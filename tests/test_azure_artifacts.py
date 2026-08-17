@@ -36,6 +36,8 @@ def test_deploy_script_enforces_function_and_safety_contract() -> None:
     assert "$env:SWA_CLI_DEPLOYMENT_TOKEN = $token" in script
     assert "--deployment-token $token" not in script
     assert "Write-Output $token" not in script
+    assert "$brandedOrigin = 'https://calendar.kitsunetechnologies.org'" in script
+    assert '$requiredCorsOrigins = @("https://$swaHostname", $brandedOrigin)' in script
 
 
 def test_static_web_app_routes_are_unique_after_azure_normalization() -> None:
