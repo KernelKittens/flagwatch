@@ -36,4 +36,3 @@ Replace plain reminder text with one compact embed. It shows reminder stage, tit
 - Bot tests cover embed structure, bounded content, URL buttons, nonce dedupe, and disabled mentions.
 - Deploy the bot compatibility update first, then the Function and static site.
 - Verify the live API, calendar, accessibility, bot readiness, and neighboring Discord workspace state.
-

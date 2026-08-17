@@ -101,4 +101,3 @@
 - [ ] Document scan-state meaning and honest limitations.
 - [ ] Run tests, Ruff, formatting, mypy, Bicep validation, and dependency audit.
 - [ ] Deploy after the compatible Discord bot update and verify API, site, timer, and accessibility live.
-
