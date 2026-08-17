@@ -286,11 +286,62 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
   font-size: 1.45rem;
 }
 .event-details h2 { margin: 0 52px 18px 0; font-size: clamp(1.5rem, 4vw, 2.2rem); }
-.policy-banner { padding: 14px; border: 1px solid var(--allowed); border-radius: 0; background: #0b3542; }
-.policy-banner.banned { border-color: var(--banned); background: #552126; }
-.policy-banner.unknown { border-color: var(--unknown); background: #493d16; }
-.policy-banner strong { display: block; margin-bottom: 4px; }
-.evidence { margin: 14px 0 0; padding-left: 12px; border-left: 3px solid currentColor; }
+.policy-verdict {
+  position: relative;
+  padding: clamp(18px, 4vw, 28px);
+  overflow: hidden;
+  border: 1px solid #2a9db1;
+  border-left: 7px solid var(--allowed);
+  background: linear-gradient(125deg, #082a36 0%, #071c27 72%);
+}
+.policy-verdict::after {
+  content: "AI";
+  position: absolute;
+  right: -8px;
+  bottom: -24px;
+  color: rgba(95, 229, 242, 0.055);
+  font: 900 clamp(5rem, 18vw, 9rem)/1 "Arial Narrow", Arial, sans-serif;
+  letter-spacing: -0.09em;
+  pointer-events: none;
+}
+.policy-verdict.banned { border-color: #f7838d; background: linear-gradient(125deg, #4a1f25 0%, #26151a 72%); }
+.policy-verdict.unknown { border-color: #e9c35d; background: linear-gradient(125deg, #403716 0%, #241f12 72%); }
+.policy-heading { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.policy-heading .eyebrow { margin: 0; color: #8eecf4; }
+.policy-verdict.unknown .policy-heading .eyebrow { color: #ffe08c; }
+.policy-verdict.banned .policy-heading .eyebrow { color: #ffb0b7; }
+.policy-status {
+  padding: 4px 8px;
+  color: #dffcff;
+  border: 1px solid currentColor;
+  font: 800 0.7rem/1.2 "Cascadia Code", Consolas, monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.policy-verdict.unknown .policy-status { color: #ffe08c; }
+.policy-verdict.banned .policy-status { color: #ffb0b7; }
+.policy-verdict h3 { position: relative; z-index: 1; margin: 12px 0 8px; font-size: clamp(1.35rem, 4vw, 2rem); }
+.policy-reason { position: relative; z-index: 1; margin: 0; color: #d7e8ed; line-height: 1.55; }
+.policy-verdict blockquote {
+  position: relative;
+  z-index: 1;
+  margin: 18px 0 0;
+  padding: 11px 14px;
+  color: #effdff;
+  border-left: 3px solid var(--allowed);
+  background: rgba(1, 11, 17, 0.38);
+  font-weight: 700;
+}
+.policy-verdict.unknown blockquote { border-left-color: var(--unknown); }
+.policy-verdict.banned blockquote { border-left-color: var(--banned); }
+.policy-checked { position: relative; z-index: 1; margin: 13px 0 0; color: var(--muted); font: 700 0.76rem/1.35 "Cascadia Code", Consolas, monospace; }
+.policy-actions { position: relative; z-index: 1; margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.policy-actions strong { color: #bff8ff; }
+.policy-verdict.unknown .policy-actions strong { color: #ffe08c; }
+.policy-verdict.banned .policy-actions strong { color: #ffb0b7; }
+.policy-source { min-height: 42px; padding: 9px 12px; display: inline-flex; align-items: center; color: #031019; background: var(--accent); font-weight: 850; text-decoration: none; }
+.policy-source:hover { background: #9bf5fc; }
+.policy-source:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 .scan-ledger { margin-top: 18px; border: 1px solid var(--line); background: #06141d; }
 .scan-ledger-heading { padding: 15px 16px 13px; border-bottom: 1px solid var(--line); }
 .scan-ledger-heading h3 { margin: 0; font-size: 1.2rem; }
@@ -375,6 +426,8 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
   .mobile-markers span[data-verification="unverified"] { background: var(--unknown); }
   .selected-day { display: block; }
   .detail-grid { grid-template-columns: 1fr; }
+  .policy-actions { align-items: stretch; flex-direction: column; }
+  .policy-source { justify-content: center; }
   .event-links { display: grid; }
   .dialog-actions { display: grid; }
   .scan-summary { grid-template-columns: 1fr 1fr; }

@@ -75,6 +75,14 @@ def test_direct_event_link_exposes_all_details_and_closes(
 
     dialog = page.get_by_role("dialog", name="Midwest Signal CTF")
     expect(dialog).to_be_visible()
+    verdict = dialog.locator("#event-detail-body > .policy-verdict")
+    expect(verdict).to_be_visible()
+    expect(verdict.locator(".policy-status")).to_have_text("Verified")
+    expect(verdict.get_by_text("Subscribed members can be pinged", exact=True)).to_be_visible()
+    expect(verdict.get_by_text("Checked Aug 14, 2026", exact=False)).to_be_visible()
+    expect(verdict.get_by_role("link", name="Read official AI rules")).to_have_attribute(
+        "href", "https://example.com/signal/rules"
+    )
     for text in (
         "AI assisted",
         "Teams may use interactive AI assistants.",
@@ -98,9 +106,7 @@ def test_direct_event_link_exposes_all_details_and_closes(
     expect(dialog.get_by_role("link", name="CTFtime listing")).to_have_attribute(
         "href", "https://ctftime.org/event/2601"
     )
-    expect(dialog.get_by_role("link", name="AI policy source")).to_have_attribute(
-        "href", "https://example.com/signal/rules"
-    )
+    expect(dialog.get_by_role("link", name="AI policy source")).to_have_count(0)
     expect(dialog.get_by_role("link", name="Download ICS")).to_have_attribute(
         "download", "midwest-signal-ctf.ics"
     )
@@ -110,6 +116,9 @@ def test_direct_event_link_exposes_all_details_and_closes(
     ).to_be_visible()
     expect(scan_ledger.get_by_text("Verified, alerts allowed", exact=True)).to_be_visible()
 
+    ARTIFACTS.mkdir(exist_ok=True)
+    page.screenshot(path=ARTIFACTS / "flagwatch-ai-rules-dialog.png", full_page=True)
+
     page.keyboard.press("Escape")
     expect(dialog).not_to_be_visible()
     assert "event=" not in page.url
@@ -118,6 +127,28 @@ def test_direct_event_link_exposes_all_details_and_closes(
     expect(dialog).to_be_visible()
     page.locator("#event-dialog").click(position={"x": 1, "y": 1})
     expect(dialog).not_to_be_visible()
+
+
+def test_unverified_ai_rules_are_prominent_and_never_claim_alerts(
+    page: Page, static_site_server: str
+) -> None:
+    page.add_init_script(SAVED_ZONE_SCRIPT)
+
+    for event_key, heading, source_link in (
+        ("ctftime%3Aunknown-policy", "AI policy unknown", False),
+        ("ctftime%3Astale-rules", "AI policy needs rechecking", True),
+        ("ctftime%3Aconflict", "Conflicting AI rules", True),
+    ):
+        page.goto(f"{static_site_server}/?month=2026-08&event={event_key}")
+        dialog = page.get_by_role("dialog")
+        verdict = dialog.locator("#event-detail-body > .policy-verdict")
+        expect(verdict.get_by_role("heading", name=heading)).to_be_visible()
+        expect(verdict.locator(".policy-status")).to_have_text("Needs recheck")
+        expect(verdict.get_by_text("No Discord alert", exact=True)).to_be_visible()
+        expect(verdict.get_by_role("link", name="Read official AI rules")).to_have_count(
+            1 if source_link else 0
+        )
+        page.keyboard.press("Escape")
 
 
 def test_phone_layout_has_selected_day_list_and_no_overflow(
