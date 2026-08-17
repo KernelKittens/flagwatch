@@ -9,6 +9,7 @@ import httpx
 from pydantic import HttpUrl
 
 from flagwatch.domain import Event, EventFacts, ScheduleMode
+from flagwatch.rule_pages import extract_readable_text
 from flagwatch.sources import EventBatch
 
 USER_AGENT = "Flagwatch/0.1 personal CTF research"
@@ -61,8 +62,8 @@ def _decimal_or_none(value: object) -> Decimal | None:
 
 
 def normalize_ctftime_event(payload: dict[str, Any]) -> tuple[Event, EventFacts]:
-    description = str(payload.get("description") or "")
-    prizes = str(payload.get("prizes") or "")
+    description = extract_readable_text(str(payload.get("description") or ""))
+    prizes = extract_readable_text(str(payload.get("prizes") or ""))
     onsite = bool(payload.get("onsite", False))
     organizers = [
         str(organizer.get("name"))

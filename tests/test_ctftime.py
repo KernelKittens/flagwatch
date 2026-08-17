@@ -18,6 +18,22 @@ def test_normalizes_ctftime_event_and_description_facts(gaslight_payload):
     assert seed.prize_summary == "Open Division: 1st: $100"
 
 
+def test_normalizes_ctftime_html_prizes_to_readable_text(gaslight_payload):
+    gaslight_payload["prizes"] = (
+        "<b>NOTE:</b> prizes require the separate scoreboard.<br>"
+        "<b>1st place</b><br>3,000 DKK gift card<script>ignore()</script>"
+    )
+
+    event, seed = normalize_ctftime_event(gaslight_payload)
+
+    assert event.prizes == (
+        "NOTE:\nprizes require the separate scoreboard.\n1st place\n3,000 DKK gift card"
+    )
+    assert seed.prize_summary == event.prizes
+    assert "<b>" not in event.prizes
+    assert "ignore" not in event.prizes
+
+
 def test_source_uses_bounded_official_events_endpoint(gaslight_payload):
     requested: list[httpx.Request] = []
 
