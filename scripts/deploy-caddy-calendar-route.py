@@ -53,6 +53,18 @@ def find_https_routes(document: dict[str, Any]) -> list[dict[str, Any]]:
     raise RuntimeError("Could not find the Kitsune HTTPS route table.")
 
 
+def find_primary_tls_subjects(document: dict[str, Any]) -> list[str]:
+    policies = document.get("apps", {}).get("tls", {}).get("automation", {}).get("policies", [])
+    for policy in policies:
+        subjects = policy.get("subjects", [])
+        if {
+            "kitsunetechnologies.org",
+            "services.kitsunetechnologies.org",
+        }.issubset(subjects):
+            return subjects
+    raise RuntimeError("Could not find the primary Kitsune TLS subject allowlist.")
+
+
 def route_is_expected(route: dict[str, Any]) -> bool:
     if route_hosts(route) != {HOST}:
         return False
@@ -70,10 +82,23 @@ def run() -> None:
         fcntl.flock(lock, fcntl.LOCK_EX)
         document = json.loads(CONFIG.read_text(encoding="utf-8"))
         routes = find_https_routes(document)
+        tls_subjects = find_primary_tls_subjects(document)
         existing = [route for route in routes if HOST in route_hosts(route)]
         if existing:
             if len(existing) != 1 or not route_is_expected(existing[0]):
                 raise RuntimeError("An unexpected calendar host route already exists.")
+            route_changed = False
+        else:
+            routes.insert(0, calendar_route())
+            route_changed = True
+
+        if HOST not in tls_subjects:
+            tls_subjects.append(HOST)
+            tls_changed = True
+        else:
+            tls_changed = False
+
+        if not (route_changed or tls_changed):
             print(json.dumps({"ok": True, "changed": False, "host": HOST}))
             return
 
@@ -81,7 +106,6 @@ def run() -> None:
         backup = CONFIG.with_name(f"caddy.json.bak-flagwatch-calendar-{stamp}")
         config_metadata = CONFIG.stat()
         shutil.copy2(CONFIG, backup)
-        routes.insert(0, calendar_route())
 
         descriptor, candidate_name = tempfile.mkstemp(
             prefix="caddy.json.flagwatch-calendar-", dir=CONFIG.parent

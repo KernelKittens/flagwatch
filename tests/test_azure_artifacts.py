@@ -59,3 +59,12 @@ def test_caddy_route_deploy_preserves_live_config_identity_before_replace() -> N
 
     assert stat_index < chmod_index < replace_index
     assert stat_index < chown_index < replace_index
+
+
+def test_caddy_route_deploy_manages_the_explicit_tls_subject_allowlist() -> None:
+    script = (ROOT / "scripts" / "deploy-caddy-calendar-route.py").read_text(encoding="utf-8")
+
+    assert "def find_primary_tls_subjects" in script
+    assert "if HOST not in tls_subjects:" in script
+    assert "tls_subjects.append(HOST)" in script
+    assert "route_changed or tls_changed" in script
