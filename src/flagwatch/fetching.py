@@ -83,7 +83,7 @@ class GuardedFetcher:
                 follow_redirects=False,
                 headers={
                     "User-Agent": "Flagwatch/0.1 personal CTF research",
-                    "Accept": "text/html,text/plain;q=0.9",
+                    "Accept": "text/html,text/plain,application/javascript,text/javascript;q=0.9",
                 },
             )
             if response.status_code in REDIRECT_STATUSES:
@@ -107,6 +107,9 @@ class GuardedFetcher:
                 "application/xml",
                 "text/xml",
                 "application/rss+xml",
+                "application/javascript",
+                "text/javascript",
+                "application/x-javascript",
             }:
                 raise UnsupportedContentError(f"Unsupported source content type: {media_type}")
             raw_text = response.text

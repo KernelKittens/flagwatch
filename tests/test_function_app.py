@@ -35,7 +35,13 @@ def test_cloud_run_disables_notification_queueing(monkeypatch, tmp_path: Path) -
         captured["send_enabled"] = settings.send_enabled
         captured["ai_enabled"] = settings.ai_enabled
         captured["queue_notifications"] = queue_notifications
-        return SimpleNamespace(run=lambda: object())
+        return SimpleNamespace(
+            run=lambda: SimpleNamespace(
+                analyzed=1,
+                verified_policies=1,
+                unverified_policies=0,
+            )
+        )
 
     monkeypatch.setattr(module, "build_sync_service", build)
     module.run_sync(module.Database(tmp_path / "cloud.db"))

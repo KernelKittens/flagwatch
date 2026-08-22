@@ -1,6 +1,9 @@
 from flagwatch.rule_pages import (
+    discover_embedded_rule_links,
     discover_rule_links,
+    discover_script_links,
     discover_sitemap_rule_links,
+    extract_javascript_evidence,
     extract_readable_text,
 )
 
@@ -63,4 +66,53 @@ def test_discovers_bounded_same_origin_rule_links_from_sitemap():
     assert discover_sitemap_rule_links("https://ctf.example/", xml) == [
         "https://ctf.example/rules",
         "https://ctf.example/faq",
+    ]
+
+
+def test_discovers_only_bounded_same_origin_script_assets():
+    html = """
+    <script src="/assets/app.js"></script>
+    <script src="https://ctf.example/assets/vendor.mjs"></script>
+    <script src="https://cdn.example/tracker.js"></script>
+    <script>inline()</script>
+    """
+
+    assert discover_script_links("https://ctf.example/", html) == [
+        "https://ctf.example/assets/app.js",
+        "https://ctf.example/assets/vendor.mjs",
+    ]
+
+
+def test_extracts_only_policy_string_literals_without_executing_javascript():
+    source = r'''
+    steal(document.cookie);
+    const noise = "ordinary event copy";
+    const matcher = /"quote-inside-a-javascript-regex/;
+    const internals = "function ai(e){return e===null?null:e.value}";
+    const policy = "We have a strict no-AI policy for the Danish competition.";
+    const detail = 'All challenge work must comply with the Danish no-AI policy.';
+    '''
+
+    evidence = extract_javascript_evidence(source)
+
+    assert evidence.splitlines() == [
+        "We have a strict no-AI policy for the Danish competition.",
+        "All challenge work must comply with the Danish no-AI policy.",
+    ]
+    assert "cookie" not in evidence
+    assert "ordinary event copy" not in evidence
+
+
+def test_discovers_bounded_explicit_https_rule_links_from_javascript():
+    source = r'''
+    const matcher = /"quote-inside-a-javascript-regex/;
+    const rules = "https://danmark.brunnerctf.dk/rules";
+    const faq = "/faq#policy";
+    const chat = "https://discord.gg/example";
+    const insecure = "http://other.example/rules";
+    '''
+
+    assert discover_embedded_rule_links("https://ctf.brunnerne.dk/", source) == [
+        "https://danmark.brunnerctf.dk/rules",
+        "https://ctf.brunnerne.dk/faq",
     ]

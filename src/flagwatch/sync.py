@@ -16,7 +16,14 @@ from flagwatch.domain import AiPolicy, Event, EventFacts, SourceScanStatus
 from flagwatch.fetching import FetchedPage, FetchError
 from flagwatch.matching import match_event
 from flagwatch.notifications import queue_alert
-from flagwatch.rule_pages import discover_rule_links, discover_sitemap_rule_links, has_readable_body
+from flagwatch.rule_pages import (
+    discover_embedded_rule_links,
+    discover_rule_links,
+    discover_script_links,
+    discover_sitemap_rule_links,
+    extract_javascript_evidence,
+    has_readable_body,
+)
 from flagwatch.sources import EventBatch
 from flagwatch.storage import Database
 
@@ -38,6 +45,8 @@ class SyncReport(BaseModel):
     analyzed: int = 0
     queued: int = 0
     failures: list[str] = Field(default_factory=list)
+    verified_policies: int = 0
+    unverified_policies: int = 0
 
 
 @dataclass(frozen=True)
@@ -124,7 +133,32 @@ class SyncService:
                 rule_pages_found=0,
             )
         documents.append(EvidenceDocument(homepage.url, homepage.text))
-        rule_urls = discover_rule_links(homepage.url, homepage.html or "")
+        homepage_readable = len(homepage.text.strip()) >= MIN_READABLE_CHARACTERS and (
+            homepage.html is None or has_readable_body(homepage.html, MIN_READABLE_CHARACTERS)
+        )
+        rule_urls = discover_rule_links(
+            homepage.url,
+            homepage.html or "",
+            allow_cross_origin=True,
+        )
+        script_documents: list[EvidenceDocument] = []
+        script_pages_read = 0
+        script_urls = (
+            [] if homepage_readable else discover_script_links(homepage.url, homepage.html or "")
+        )
+        for script_url in script_urls:
+            try:
+                script_page = self.fetcher.get_page(script_url)
+            except (FetchError, httpx.HTTPError, OSError) as error:
+                failures.append(f"{event.title}: {script_url}: {error}")
+                continue
+            script_pages_read += 1
+            script_evidence = extract_javascript_evidence(script_page.text)
+            if script_evidence:
+                script_documents.append(EvidenceDocument(script_page.url, script_evidence))
+            for rule_url in discover_embedded_rule_links(homepage.url, script_page.text):
+                if rule_url not in rule_urls:
+                    rule_urls.append(rule_url)
 
         try:
             sitemap = self.fetcher.get_page(urljoin(homepage.url, "/sitemap.xml"))
@@ -149,11 +183,9 @@ class SyncService:
             if len(rule_page.text.strip()) >= MIN_READABLE_CHARACTERS:
                 readable_rule_pages += 1
             documents.append(EvidenceDocument(rule_page.url, rule_page.text))
+        documents.extend(script_documents)
 
-        homepage_readable = len(homepage.text.strip()) >= MIN_READABLE_CHARACTERS and (
-            homepage.html is None or has_readable_body(homepage.html, MIN_READABLE_CHARACTERS)
-        )
-        usable = homepage_readable or readable_rule_pages > 0
+        usable = homepage_readable or readable_rule_pages > 0 or bool(script_documents)
         status = SourceScanStatus.READ if usable and not failures else SourceScanStatus.LIMITED
         if not usable:
             reason = "Official site responded without readable rules content"
@@ -162,6 +194,8 @@ class SyncService:
         elif rule_pages_found:
             suffix = "page" if rule_pages_found == 1 else "pages"
             reason = f"Official site and {rule_pages_found} rule {suffix} read"
+        elif script_documents:
+            reason = "Official site and static policy evidence read"
         else:
             reason = "Official site read; no dedicated rules page found"
         return SourceScan(
@@ -169,7 +203,7 @@ class SyncService:
             failures=failures,
             status=status,
             reason=reason,
-            pages_checked=1 + rule_pages_found,
+            pages_checked=1 + script_pages_read + rule_pages_found,
             rule_pages_found=rule_pages_found,
         )
 
@@ -224,6 +258,14 @@ class SyncService:
                     )
                 self.database.save_facts(event.key, facts)
                 report.analyzed += 1
+                if (
+                    facts.ai_policy is not AiPolicy.UNKNOWN
+                    and not facts.ai_policy_conflicting
+                    and not facts.analysis_stale
+                ):
+                    report.verified_policies += 1
+                else:
+                    report.unverified_policies += 1
                 if self.queue_notifications:
                     match = match_event(event, facts, criteria)
                     if queue_alert(self.database, event, facts, match, criteria.version):

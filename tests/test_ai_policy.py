@@ -26,7 +26,30 @@ from flagwatch.domain import AiPolicy
             AiPolicy.HUMAN_ONLY,
         ),
         ("All AI usage is prohibited during the competition.", AiPolicy.HUMAN_ONLY),
+        ("We have a strict no-AI policy for this competition.", AiPolicy.HUMAN_ONLY),
+        ("All challenge work must comply with the no-AI policy.", AiPolicy.HUMAN_ONLY),
+        ("CubeCTF 2026: All A/D, no AI.", AiPolicy.HUMAN_ONLY),
+        (
+            "Do not use AI tools to automatically solve challenges on your behalf. "
+            "Using AI to explain a concept you're stuck on is fine.",
+            AiPolicy.AI_ASSISTED,
+        ),
+        (
+            "Any tools are fine, including AI. They're helpers, not shortcuts.",
+            AiPolicy.AI_NATIVE,
+        ),
+        (
+            "Tools of any kind are permitted. This includes large language models.",
+            AiPolicy.AI_NATIVE,
+        ),
+        (
+            "We do not forbid you from using AI. Slopping is not disallowed.",
+            AiPolicy.AI_NATIVE,
+        ),
+        ("No team size limit and separate AI/Human leaderboards.", AiPolicy.AI_NATIVE),
         ("Be respectful and do not share flags.", AiPolicy.UNKNOWN),
+        ("This event has no published policy about AI.", AiPolicy.UNKNOWN),
+        ("Challenges include an AI hacking category.", AiPolicy.UNKNOWN),
     ],
 )
 def test_classifies_ai_policy(text, expected):

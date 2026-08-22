@@ -72,3 +72,24 @@ def test_accepts_xml_sitemaps_as_plain_text():
 
     assert page.text.startswith('<?xml version="1.0"?>')
     assert page.html is None
+
+
+@pytest.mark.parametrize("media_type", ["application/javascript", "text/javascript"])
+def test_accepts_javascript_as_inert_text(media_type):
+    source = b'const policy = "We use a strict no-AI policy.";'
+    fetcher = GuardedFetcher(
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    headers={"content-type": media_type},
+                    content=source,
+                )
+            )
+        ),
+        resolver=lambda _host: ["93.184.216.34"],
+    )
+
+    page = fetcher.get_page("https://ctf.example/assets/app.js")
+
+    assert page.text == source.decode()

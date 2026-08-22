@@ -2,19 +2,33 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from itertools import pairwise
 
 from flagwatch.analysis.evidence import EvidenceDocument, PolicyResult
 from flagwatch.domain import AiPolicy
 
-AI_TERMS = re.compile(r"\b(ai|llm|large language model|artificial intelligence)\b", re.IGNORECASE)
+AI_TERMS = re.compile(
+    r"\b(ai|llms?|large language models?|artificial intelligence|generative ai|chatgpt|"
+    r"claude|copilot|gemini)\b",
+    re.IGNORECASE,
+)
 NATIVE_ALLOW = re.compile(
-    r"\b(all forms of ai usage|all ai tools|unrestricted ai|ai[- ]native)\b.{0,32}"
-    r"\b(allowed|permitted|welcome)\b",
+    r"(?:\b(all forms of ai usage|all ai tools|unrestricted ai|ai[- ]native)\b.{0,32}"
+    r"\b(allowed|permitted|welcome)\b|"
+    r"\b(?:any|all)\s+tools?\b.{0,24}\b(?:allowed|permitted|fine)\b.{0,40}"
+    r"\b(?:including|includes?)\s+(?:ai|llms?|large language models?)\b|"
+    r"\btools?\s+of\s+any\s+kind\b.{0,24}\b(?:allowed|permitted)\b.{0,64}"
+    r"\b(?:this\s+)?includes?\s+(?:ai|llms?|large language models?)\b|"
+    r"\bdo not forbid\b.{0,48}\b(?:using|use of)\s+ai\b|"
+    r"\b(?:using|use of)\s+ai\b.{0,64}\b(?:not disallowed|not forbidden)\b|"
+    r"\bseparate\s+ai\s*/\s*human\s+leaderboards?\b)",
     re.IGNORECASE,
 )
 ASSISTED_ALLOW = re.compile(
-    r"\b(interactive ai assistance|ai assistance|ai-assisted code generation|use of ai)\b"
-    r".{0,48}\b(allowed|permitted|encouraged|fine)\b",
+    r"(?:\b(interactive ai assistance|ai assistance|ai-assisted code generation|use of ai)\b"
+    r".{0,48}\b(allowed|permitted|encouraged|fine)\b|"
+    r"\busing\s+ai\s+to\b.{0,72}\b(?:explain|research|learn)\b.{0,72}"
+    r"\b(?:allowed|permitted|fine)\b)",
     re.IGNORECASE,
 )
 SOLVING_PROHIBITION = re.compile(
@@ -22,19 +36,27 @@ SOLVING_PROHIBITION = re.compile(
     r"\b(?:all\s+)?ai usage\b.{0,40}\b(?:prohibited|forbidden|not allowed)\b|"
     r"\b(?:llms?|ai assistants?|ai tools?)\b.{0,72}\b(?:prohibited|forbidden|not allowed)\b|"
     r"\bchallenge (?:details|material)\b.{0,72}\bmust not\b.{0,40}\bai\b|"
-    r"\bmust not\b.{0,72}\bchallenge (?:details|material)\b.{0,40}\bai\b)",
+    r"\bmust not\b.{0,72}\bchallenge (?:details|material)\b.{0,40}\bai\b|"
+    r"\b(?:all\s+)?a\s*/\s*d\b.{0,24}\bno[- ]ai\b|"
+    r"\b(?:has|have|uses?|follows?|enforces?|requires?)\b.{0,48}"
+    r"\b(?:a\s+)?(?:strict\s+)?no[- ]ai\s+(?:policy|rules?)\b|"
+    r"\b(?:comply|complies|compliant)\s+with\b.{0,48}"
+    r"\b(?:a\s+)?(?:strict\s+)?no[- ]ai\s+(?:policy|rules?)\b)",
     re.IGNORECASE,
 )
 AUTOMATION_LIMIT = re.compile(
-    r"\b(fully automated|autonomous)\b.{0,32}\b(solv|agent).{0,32}"
-    r"\b(prohibited|forbidden|not allowed|banned)\b",
+    r"(?:\b(fully automated|autonomous)\b.{0,32}\b(solv|agent).{0,32}"
+    r"\b(prohibited|forbidden|not allowed|banned)\b|"
+    r"\bdo not use\s+ai tools?\b.{0,72}\bautomatically solve\b)",
     re.IGNORECASE,
 )
 
 
 def _sentences(document: EvidenceDocument) -> list[tuple[str, str]]:
     values = re.split(r"(?<=[.!?])\s+|[\r\n]+", document.text)
-    return [(document.source_url, value.strip()) for value in values if value.strip()]
+    sentences = [value.strip() for value in values if value.strip()]
+    adjacent = [f"{first} {second}" for first, second in pairwise(sentences)]
+    return [(document.source_url, value) for value in [*sentences, *adjacent]]
 
 
 def _excerpt(value: str) -> str:

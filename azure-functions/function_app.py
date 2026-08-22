@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 
 import azure.functions as func
@@ -52,7 +53,15 @@ def run_sync(database: Database) -> object:
         send_enabled=False,
         ai_enabled=False,
     )
-    return build_sync_service(settings, queue_notifications=False).run()
+    report = build_sync_service(settings, queue_notifications=False).run()
+    if report.analyzed and report.verified_policies == 0:
+        logging.warning(
+            "Flagwatch refresh completed with zero current verified AI policies: "
+            "%d analyzed, %d unverified",
+            report.analyzed,
+            report.unverified_policies,
+        )
+    return report
 
 
 @app.route(route="events", methods=["GET"])
