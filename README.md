@@ -17,6 +17,10 @@ uv run flagwatch sync
 uv run flagwatch serve
 ```
 
+## License
+
+MIT. See [LICENSE](LICENSE).
+
 Open `http://127.0.0.1:4814`. The dashboard can also run a sync from its **Sync now** button. A full sync may take a few minutes because official event sites are fetched one at a time with network safety checks.
 
 The SQLite database defaults to `data/flagwatch.db`. Override it with `--database` on any command or with `FLAGWATCH_DATABASE_PATH`.

@@ -1,13 +1,14 @@
 [CmdletBinding()]
 param(
-    [string]$SeedDatabasePath = 'C:\Users\Owner\flagwatch\data\flagwatch.db',
+    [Parameter(Mandatory)]
+    [string]$ExpectedSubscriptionId,
+    [string]$SeedDatabasePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'data\flagwatch.db'),
     [string]$BudgetContactEmail = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $ResourceGroup = 'rg-flagwatch-web-prod'
 $Location = 'centralus'
-$ExpectedSubscriptionId = '8e2620a1-860d-4229-b5a5-93274532842b'
 $storageName = 'stflagwatch8e2620'
 $hostStorageName = 'stfwhost8e2620'
 $swaName = 'swa-flagwatch-prod-8e2620'
