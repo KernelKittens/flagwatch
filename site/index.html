@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f4f7fb">
+    <meta name="theme-color" content="#f3f0e8">
     <title>Flagwatch CTF Calendar</title>
     <link rel="stylesheet" href="/app.css">
     <script src="/config.js" defer></script>
@@ -12,9 +12,9 @@
   <body>
     <a class="skip-link" href="#calendar">Skip to calendar</a>
     <header class="site-header">
-      <a class="brand" href="/" aria-label="Flagwatch home">
-        <span class="brand-mark" aria-hidden="true">F</span>
-        <span><strong>Flagwatch</strong><small>CTF calendar</small></span>
+      <a class="brand" href="/" aria-label="Flagwatch home" id="home-link">
+        <span class="brand-mark" aria-hidden="true" id="brand-mark">F</span>
+        <span><strong id="brand-name">Flagwatch</strong><small id="brand-organization">CTF intelligence</small></span>
       </a>
       <button class="timezone-button" id="timezone-button" type="button">Timezone</button>
     </header>
@@ -43,6 +43,7 @@
 
         <p class="policy-note">Events with a confirmed ban on all AI use are omitted. Unverified rules never trigger alerts.</p>
         <p class="history-note">Includes finished CTFs from the previous 31 days and the next 90 days.</p>
+        <p class="site-description" id="site-description">CTF events, official rules, and cited source intelligence.</p>
 
         <p class="status" id="status" role="status">Loading CTFs...</p>
         <div class="calendar" id="calendar" role="grid" aria-label="Month calendar"></div>
@@ -55,7 +56,8 @@
     </main>
 
     <footer class="site-footer">
-      <a href="/accessibility">Accessibility</a>
+      <a href="/">Home</a>
+      <nav id="footer-links" aria-label="Footer links"></nav>
     </footer>
 
     <dialog id="event-dialog" aria-labelledby="event-title">

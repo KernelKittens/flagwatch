@@ -299,7 +299,22 @@ try {
 
     Copy-Item -Path (Join-Path $repo 'site\*') -Destination $siteStage -Recurse -Force
     $apiBase = "https://$functionName.azurewebsites.net"
-    [IO.File]::WriteAllText((Join-Path $siteStage 'config.js'), "window.FLAGWATCH_API_BASE = '$apiBase';`n")
+    $siteConfig = @"
+window.FLAGWATCH_API_BASE = '$apiBase';
+window.FLAGWATCH_CONFIG = {
+  productName: 'KernelKittens Flagwatch',
+  organizationName: 'KernelKittens',
+  shortDescription: 'CTF events, official rules, and cited source intelligence.',
+  mark: 'K',
+  accentColor: '#006c7a',
+  defaultTimeZone: 'America/Chicago',
+  footerLinks: [
+    {label: 'Accessibility', url: '/accessibility'},
+    {label: 'Source policy', url: 'https://github.com/KernelKittens/flagwatch/blob/main/docs/source-policy.md'}
+  ]
+};
+"@
+    [IO.File]::WriteAllText((Join-Path $siteStage 'config.js'), $siteConfig)
     $token = & az staticwebapp secrets list --resource-group $ResourceGroup --name $swaName --query properties.apiKey -o tsv
     if ($LASTEXITCODE -ne 0 -or -not $token) { throw 'Could not obtain the Static Web Apps deployment token.' }
     $env:SWA_CLI_DEPLOYMENT_TOKEN = $token

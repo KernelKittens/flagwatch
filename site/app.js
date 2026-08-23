@@ -1,7 +1,21 @@
 (() => {
   "use strict";
 
-  const FALLBACK_ZONE = "America/Chicago";
+  const rawBrand = window.FLAGWATCH_CONFIG || {};
+  const brand = {
+    productName: String(rawBrand.productName || "Flagwatch").slice(0, 80),
+    organizationName: String(rawBrand.organizationName || "").slice(0, 120),
+    shortDescription: String(
+      rawBrand.shortDescription || "CTF events, official rules, and cited source intelligence.",
+    ).slice(0, 240),
+    mark: String(rawBrand.mark || "F").slice(0, 3),
+    accentColor: String(rawBrand.accentColor || "#006c7a"),
+    defaultTimeZone: String(rawBrand.defaultTimeZone || "America/Chicago"),
+    logoUrl: rawBrand.logoUrl ? String(rawBrand.logoUrl) : "",
+    faviconUrl: rawBrand.faviconUrl ? String(rawBrand.faviconUrl) : "",
+    footerLinks: Array.isArray(rawBrand.footerLinks) ? rawBrand.footerLinks.slice(0, 8) : [],
+  };
+  const FALLBACK_ZONE = brand.defaultTimeZone;
   const ZONE_KEY = "flagwatch.timeZone";
   const SNAPSHOT_KEY = "flagwatch.snapshot.v1";
   const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -38,7 +52,90 @@
     scanSources: document.querySelector("#scan-sources"),
     scanRecheck: document.querySelector("#scan-recheck"),
     scanConfirmed: document.querySelector("#scan-confirmed"),
+    brandName: document.querySelector("#brand-name"),
+    brandOrganization: document.querySelector("#brand-organization"),
+    brandMark: document.querySelector("#brand-mark"),
+    homeLink: document.querySelector("#home-link"),
+    siteDescription: document.querySelector("#site-description"),
+    footerLinks: document.querySelector("#footer-links"),
   };
+
+  function safePublicUrl(value, allowRelative = false) {
+    if (!String(value || "").trim()) return null;
+    try {
+      const url = new URL(String(value || ""), location.origin);
+      if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+      if (!allowRelative && !String(value).startsWith("http")) return null;
+      return url.href;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function hexChannels(value) {
+    const match = /^#([0-9a-f]{6})$/i.exec(value);
+    if (!match) return null;
+    return [0, 2, 4].map((offset) => Number.parseInt(match[1].slice(offset, offset + 2), 16));
+  }
+
+  function relativeLuminance(channels) {
+    const values = channels.map((value) => {
+      const normalized = value / 255;
+      return normalized <= 0.04045
+        ? normalized / 12.92
+        : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2];
+  }
+
+  function hasWhiteTextContrast(value) {
+    const channels = hexChannels(value);
+    if (!channels) return false;
+    const luminance = relativeLuminance(channels);
+    return 1.05 / (luminance + 0.05) >= 4.5;
+  }
+
+  function applyBrand() {
+    elements.brandName.textContent = brand.productName;
+    elements.brandOrganization.textContent = brand.organizationName || "CTF intelligence";
+    elements.siteDescription.textContent = brand.shortDescription;
+    elements.homeLink.setAttribute("aria-label", `${brand.productName} home`);
+    if (hasWhiteTextContrast(brand.accentColor)) {
+      document.documentElement.style.setProperty("--accent", brand.accentColor);
+      document.documentElement.style.setProperty("--accent-dark", brand.accentColor);
+    }
+    const logoUrl = safePublicUrl(brand.logoUrl, true);
+    if (logoUrl) {
+      const image = document.createElement("img");
+      image.src = logoUrl;
+      image.alt = "";
+      elements.brandMark.replaceChildren(image);
+    } else {
+      elements.brandMark.textContent = brand.mark;
+    }
+    const faviconUrl = safePublicUrl(brand.faviconUrl, true);
+    if (faviconUrl) {
+      const favicon = document.createElement("link");
+      favicon.rel = "icon";
+      favicon.href = faviconUrl;
+      document.head.append(favicon);
+    }
+    elements.footerLinks.replaceChildren();
+    brand.footerLinks.forEach((item) => {
+      if (!item || typeof item !== "object") return;
+      const url = safePublicUrl(item.url, true);
+      const label = String(item.label || "").trim().slice(0, 80);
+      if (!url || !label) return;
+      const link = document.createElement("a");
+      link.href = url;
+      link.textContent = label;
+      if (new URL(url).origin !== location.origin) {
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+      }
+      elements.footerLinks.append(link);
+    });
+  }
 
   function detectZone() {
     try {
@@ -162,7 +259,7 @@
       year: "numeric",
       timeZone: "UTC",
     }).format(state.month);
-    document.title = `${elements.heading.textContent} CTFs | Flagwatch`;
+    document.title = `${elements.heading.textContent} CTFs | ${brand.productName}`;
     elements.calendar.replaceChildren();
     const headerRow = document.createElement("div");
     headerRow.className = "calendar-row";
@@ -362,7 +459,7 @@
     const body = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Flagwatch//CTF Calendar//EN",
+      `PRODID:-//${brand.productName.replace(/[^a-z0-9 ]/gi, " ")} //CTF Calendar//EN`,
       "BEGIN:VEVENT",
       `UID:${event.event_key}@flagwatch`,
       `DTSTART:${icsTimestamp(event.starts_at)}`,
@@ -424,7 +521,11 @@
     const decision = alertAllowed ? "Verified, alerts allowed" : "Unverified, no alert";
     const decisionDetail = alertAllowed
       ? "Current official evidence confirms compatible AI use."
-      : "Flagwatch will recheck this event and will not notify Discord without current official evidence.";
+      : `${brand.productName} will recheck this event and will not notify Discord without current official evidence.`;
+    const sourceCount = Array.isArray(event.source_refs) && event.source_refs.length
+      ? event.source_refs.length
+      : 1;
+    const sourceSummary = `${sourceCount} event source${sourceCount === 1 ? "" : "s"} imported.`;
     return `
       <section class="scan-ledger" aria-labelledby="source-scan-title">
         <div class="scan-ledger-heading">
@@ -432,12 +533,85 @@
           <h3 id="source-scan-title">What the scan found</h3>
         </div>
         <ol>
-          <li><span class="scan-mark">OK</span><strong>CTFtime record</strong><span>Schedule and official URL imported.</span></li>
+          <li><span class="scan-mark">OK</span><strong>Event sources</strong><span>${escapeHtml(sourceSummary)}</span></li>
           <li><span class="scan-mark${sourceClass}">${sourceMark}</span><strong>Official source</strong><span>${escapeHtml(display(event.source_scan_reason, "Official source has not been checked yet"))}</span></li>
           <li><span class="scan-mark${rulesFound ? "" : " warn"}">${rulesFound ? "OK" : "!"}</span><strong>Rules discovery</strong><span>${escapeHtml(rulesText)}</span></li>
           <li><span class="scan-mark${alertAllowed ? "" : " warn"}">${alertAllowed ? "OK" : "!"}</span><strong>Alert decision</strong><span>${escapeHtml(decisionDetail)}</span></li>
         </ol>
         <div class="alert-decision${alertAllowed ? "" : " warn"}"><strong>${escapeHtml(decision)}</strong></div>
+      </section>`;
+  }
+
+  function sourceKindLabel(kind) {
+    return {
+      official_page: "Official event page",
+      organizer_page: "Official organizer page",
+      ics: "ICS calendar",
+      json_feed: "JSON feed",
+      ctfd: "CTFd API",
+      rctf: "rCTF API",
+      ctftime: "CTFtime API",
+    }[kind] || "Public source";
+  }
+
+  function sourceRecords(event) {
+    const refs = Array.isArray(event.source_refs) ? event.source_refs : [];
+    if (!refs.length) return "";
+    const items = refs.map((ref) => {
+      const url = safePublicUrl(ref.url);
+      const label = `${sourceKindLabel(ref.kind)}: ${display(ref.source, "Source")}`;
+      const collected = ref.collected_at ? `Collected ${formatDateTime(ref.collected_at)}` : "";
+      return `<li>${url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`
+        : `<span>${escapeHtml(label)}</span>`}<small>${escapeHtml(collected)}</small></li>`;
+    }).join("");
+    return `
+      <section class="source-records" aria-labelledby="source-records-title">
+        <p class="eyebrow">Provenance</p>
+        <h3 id="source-records-title">Event sources</h3>
+        <ul>${items}</ul>
+      </section>`;
+  }
+
+  function conflictWarnings(event) {
+    const conflicts = Array.isArray(event.conflicts) ? event.conflicts : [];
+    if (!conflicts.length) return "";
+    const items = conflicts.map((conflict) => {
+      const chosen = safePublicUrl(conflict.chosen_source_url);
+      const other = safePublicUrl(conflict.other_source_url);
+      const links = [
+        chosen ? `<a href="${escapeHtml(chosen)}" target="_blank" rel="noopener noreferrer">preferred source</a>` : "preferred source",
+        other ? `<a href="${escapeHtml(other)}" target="_blank" rel="noopener noreferrer">conflicting source</a>` : "conflicting source",
+      ].join(" and ");
+      return `<li><strong>${escapeHtml(display(conflict.field))}</strong><span>${escapeHtml(display(conflict.chosen_value))} versus ${escapeHtml(display(conflict.other_value))}</span><small>${links}</small></li>`;
+    }).join("");
+    return `
+      <section class="source-conflicts" aria-labelledby="source-conflicts-title">
+        <p class="eyebrow">Conflict warning</p>
+        <h3 id="source-conflicts-title">Sources disagree</h3>
+        <p>${escapeHtml(brand.productName)} kept the higher-priority value and shows both records here. Safety-sensitive conflicts suppress alerts.</p>
+        <ul>${items}</ul>
+      </section>`;
+  }
+
+  function publicAnalytics(event) {
+    const analytics = event.analytics || {};
+    const categories = analytics.categories && typeof analytics.categories === "object"
+      ? Object.entries(analytics.categories)
+      : [];
+    const values = [
+      ["Challenges", analytics.challenges_total],
+      ["Visible solves", analytics.visible_solves],
+      ["Scoreboard entries", analytics.scoreboard_entries],
+      ["Participants", analytics.participants_total],
+      ["Challenge categories", categories.map(([name, count]) => `${name}: ${count}`).join(", ")],
+    ].filter(([, value]) => value !== null && value !== undefined && value !== "");
+    if (!values.length) return "";
+    return `
+      <section class="public-analytics" aria-labelledby="public-analytics-title">
+        <p class="eyebrow">Public platform data</p>
+        <h3 id="public-analytics-title">Event analytics</h3>
+        <dl>${values.map(([term, value]) => `<div><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>
       </section>`;
   }
 
@@ -528,15 +702,23 @@
       ["Categories", display(event.categories)],
       ["Organizers", display(event.organizers)],
       ["Participants", display(event.participants)],
+      ["Platform", display(event.platform)],
     ];
+    const links = [
+      [event.official_url, "Official event"],
+      [event.registration_url, "Registration"],
+      [event.ctftime_url, "CTFtime listing"],
+    ].filter(([url]) => safePublicUrl(url));
     elements.eventBody.innerHTML = `
       ${policyVerdict(event)}
       ${scanLedger(event)}
+      ${conflictWarnings(event)}
+      ${sourceRecords(event)}
+      ${publicAnalytics(event)}
       ${eventIntelligence(event)}
       <dl class="detail-grid">${details.map(([term, value]) => `<div class="detail-item"><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>
       <nav class="event-links" aria-label="Event links">
-        <a href="${escapeHtml(event.official_url)}" target="_blank" rel="noopener noreferrer">Official event</a>
-        <a href="${escapeHtml(event.ctftime_url)}" target="_blank" rel="noopener noreferrer">CTFtime listing</a>
+        ${links.map(([url, label]) => `<a href="${escapeHtml(safePublicUrl(url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(label)}</a>`).join("")}
         <a href="${icsLink(event)}" download="${slug(event.title)}.ics">Download ICS</a>
       </nav>`;
     if (updateHistory) updateUrl({event: event.event_key}, "push");
@@ -734,6 +916,7 @@
     }
   });
 
+  applyBrand();
   updateTimezoneButton();
   if (!savedZone) {
     elements.detectedTimezone.textContent = state.timeZone;
