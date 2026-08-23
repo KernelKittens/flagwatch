@@ -5,7 +5,15 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_serializer, field_validator
 
-from flagwatch.domain import AiPolicy, IntelClaim, ScheduleMode, SourceScanStatus
+from flagwatch.domain import (
+    AiPolicy,
+    EventAnalytics,
+    IntelClaim,
+    ScheduleMode,
+    SourceConflict,
+    SourceRef,
+    SourceScanStatus,
+)
 from flagwatch.storage import Database
 
 
@@ -15,7 +23,13 @@ class PublicEvent(BaseModel):
     event_key: str
     title: str
     official_url: HttpUrl
-    ctftime_url: HttpUrl
+    ctftime_url: HttpUrl | None
+    primary_source_url: HttpUrl
+    registration_url: HttpUrl | None
+    platform: str | None
+    source_refs: list[SourceRef]
+    conflicts: list[SourceConflict]
+    analytics: EventAnalytics
     starts_at: datetime
     finishes_at: datetime
     online: bool
@@ -104,6 +118,12 @@ def build_public_snapshot(
             title=view.event.title,
             official_url=view.event.official_url,
             ctftime_url=view.event.ctftime_url,
+            primary_source_url=view.event.primary_source_url or view.event.official_url,
+            registration_url=view.event.registration_url,
+            platform=view.event.platform,
+            source_refs=view.event.source_refs,
+            conflicts=view.event.conflicts,
+            analytics=view.event.analytics,
             starts_at=view.event.starts_at,
             finishes_at=view.event.finishes_at,
             online=view.event.online,
