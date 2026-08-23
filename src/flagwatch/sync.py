@@ -201,7 +201,8 @@ class SyncService:
     def _documents_for(self, event: Event) -> SourceScan:
         failures: list[str] = []
         source_text = "\n\n".join(part for part in [event.description, event.prizes] if part)
-        documents = [EvidenceDocument(str(event.ctftime_url), source_text)]
+        source_url = event.primary_source_url or event.official_url
+        documents = [EvidenceDocument(str(source_url), source_text)]
         try:
             homepage = self.fetcher.get_page(str(event.official_url))
         except (FetchError, httpx.HTTPError, OSError) as error:
@@ -361,5 +362,5 @@ class SyncService:
                     if queue_alert(self.database, event, facts, match, criteria.version):
                         report.queued += 1
             except Exception as error:
-                report.failures.append(f"{event.title}: {type(error).__name__}: {error}")
+                report.failures.append(f"{event.title}: {type(error).__name__}")
         return report

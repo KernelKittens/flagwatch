@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import tempfile
+from datetime import UTC, datetime
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated
@@ -8,7 +11,9 @@ import httpx
 import typer
 import uvicorn
 
+from flagwatch.analysis.discovery import WatchPageDiscoveryExtractor
 from flagwatch.analysis.llm import LlmPolicyExtractor
+from flagwatch.analysis.providers import build_model_connector
 from flagwatch.config import Settings
 from flagwatch.fetching import GuardedFetcher
 from flagwatch.notifications import (
@@ -17,7 +22,8 @@ from flagwatch.notifications import (
     SmtpSender,
     deliver_pending,
 )
-from flagwatch.sources.ctftime import CtftimeSource
+from flagwatch.public_snapshot import build_public_snapshot
+from flagwatch.sources.factory import build_event_source
 from flagwatch.storage import Database
 from flagwatch.sync import SyncService
 from flagwatch.web import create_app
@@ -30,6 +36,7 @@ def _settings(database: Path | None) -> Settings:
 
 
 def _database(settings: Settings) -> Database:
+    settings.database_path.parent.mkdir(parents=True, exist_ok=True)
     database = Database(settings.database_path)
     database.initialize()
     return database
@@ -51,17 +58,30 @@ def build_sync_service(settings: Settings, *, queue_notifications: bool = True) 
     source_client = httpx.Client(timeout=settings.request_timeout_seconds)
     page_client = httpx.Client(timeout=settings.request_timeout_seconds)
     policy_extractor = None
-    if settings.ai_enabled and settings.ai_api_key is not None:
-        policy_extractor = LlmPolicyExtractor(
-            client=httpx.Client(timeout=settings.ai_timeout_seconds),
+    discovery_extractor = None
+    if settings.ai_enabled:
+        model_client = httpx.Client(timeout=settings.ai_timeout_seconds)
+        connector = build_model_connector(
+            provider=settings.ai_provider,
+            client=model_client,
             endpoint=str(settings.ai_endpoint),
-            api_key=settings.ai_api_key.get_secret_value(),
+            api_key=(
+                settings.ai_api_key.get_secret_value() if settings.ai_api_key is not None else None
+            ),
             model=settings.ai_model,
         )
+        policy_extractor = LlmPolicyExtractor(connector=connector)
+        discovery_extractor = WatchPageDiscoveryExtractor(connector)
+    fetcher = GuardedFetcher(page_client, max_bytes=settings.max_response_bytes)
     return SyncService(
         database=database,
-        source=CtftimeSource(source_client, str(settings.ctftime_base_url)),
-        fetcher=GuardedFetcher(page_client, max_bytes=settings.max_response_bytes),
+        source=build_event_source(
+            settings,
+            source_client,
+            fetcher,
+            discovery_extractor=discovery_extractor,
+        ),
+        fetcher=fetcher,
         lookahead_days=settings.ctftime_lookahead_days,
         lookback_days=settings.ctftime_lookback_days,
         policy_extractor=policy_extractor,
@@ -105,6 +125,46 @@ def sync_command(
     )
     if report.failures:
         typer.echo(f"Kept going after {len(report.failures)} source fetch failures.")
+
+
+@app.command()
+def refresh(
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="Public snapshot destination."),
+    ] = Path("data/public/events.json"),
+    database: Annotated[
+        Path | None, typer.Option("--database", help="SQLite database path.")
+    ] = None,
+) -> None:
+    """Sync sources and atomically publish a last-good public snapshot."""
+    settings = _settings(database)
+    report = build_sync_service(settings, queue_notifications=False).run()
+    if report.failures and report.imported == 0:
+        typer.echo(
+            "No source produced an event. The previous public snapshot was kept.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    snapshot = build_public_snapshot(_database(settings), datetime.now(UTC))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, candidate_name = tempfile.mkstemp(
+        prefix=f".{output.name}.",
+        suffix=".tmp",
+        dir=output.parent,
+    )
+    candidate = Path(candidate_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(snapshot.model_dump_json())
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(candidate, output)
+    finally:
+        candidate.unlink(missing_ok=True)
+    typer.echo(f"Published {len(snapshot.events)} events to {output}.")
 
 
 @app.command()

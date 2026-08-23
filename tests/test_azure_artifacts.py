@@ -29,9 +29,12 @@ def test_deploy_script_enforces_function_and_safety_contract() -> None:
         "Storage Blob Data Contributor",
         "FLAGWATCH_SEND_ENABLED = 'false'",
         "FLAGWATCH_AI_ENABLED = 'true'",
+        "FLAGWATCH_AI_PROVIDER = 'azure_openai'",
         "FLAGWATCH_AI_MODEL = 'DeepSeek-V4-Pro'",
         "FLAGWATCH_AI_ENDPOINT = 'https://kitsunetechnologies.services.ai.azure.com/openai/v1/chat/completions'",
+        "FLAGWATCH_CTFTIME_ENABLED = 'true'",
         "FLAGWATCH_CTFTIME_LOOKBACK_DAYS = '31'",
+        'FLAGWATCH_SOURCES_JSON = \'{"sources":[{"kind":"watch"',
         "amount = 10",
     ):
         assert required in script
@@ -47,6 +50,8 @@ def test_deploy_script_enforces_function_and_safety_contract() -> None:
     assert "GetEnvironmentVariable('FLAGWATCH_AI_API_KEY', 'Process')" in script
     assert '"FLAGWATCH_AI_API_KEY=$aiApiKey"' not in script
     assert '--settings "@$aiSettingsPath"' in script
+    requirements = (ROOT / "azure-functions" / "requirements.txt").read_text(encoding="utf-8")
+    assert "icalendar>=7.3,<8" in requirements
     assert script.index("functionapp deployment source config-zip") < script.index(
         "Write-PrivateJsonFile -Path $aiSettingsPath -Value $aiSettings"
     )

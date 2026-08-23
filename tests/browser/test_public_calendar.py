@@ -17,6 +17,42 @@ def _open_august(page: Page, static_site_server: str) -> None:
     page.goto(f"{static_site_server}/?month=2026-08")
 
 
+def test_runtime_branding_is_white_label_and_keeps_home_route(
+    page: Page, static_site_server: str
+) -> None:
+    page.add_init_script(SAVED_ZONE_SCRIPT)
+    page.add_init_script(
+        """
+        window.FLAGWATCH_CONFIG = {
+          productName: 'Acme CTF Intel',
+          organizationName: 'Acme Security Club',
+          shortDescription: 'Official CTF schedules and cited rules.',
+          mark: 'A',
+          accentColor: '#7157a8',
+          defaultTimeZone: 'America/Chicago',
+          footerLinks: [{label: 'Source policy', url: '/accessibility'}],
+        };
+        """
+    )
+    page.goto(f"{static_site_server}/?month=2026-08")
+
+    expect(page.get_by_role("link", name="Acme CTF Intel home")).to_be_visible()
+    expect(page.locator("#brand-name")).to_have_text("Acme CTF Intel")
+    expect(page.locator("#brand-organization")).to_have_text("Acme Security Club")
+    expect(page.locator("#brand-mark")).to_have_text("A")
+    expect(page.get_by_text("Official CTF schedules and cited rules.", exact=True)).to_be_visible()
+    expect(page.get_by_role("link", name="Source policy")).to_have_attribute(
+        "href", f"{static_site_server}/accessibility"
+    )
+    expect(page.get_by_role("link", name="Home", exact=True)).to_have_attribute("href", "/")
+    assert (
+        page.evaluate(
+            "getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()"
+        )
+        == "#7157a8"
+    )
+
+
 def test_month_grid_navigation_multiday_and_crowded_dates(
     page: Page, static_site_server: str
 ) -> None:
@@ -96,16 +132,19 @@ def test_direct_event_link_exposes_all_details_and_closes(
         "Online",
         "2 days 6 hours",
         "Signal Crew",
-        "318",
         "Aug 21, 2026",
         "Aug 23, 2026",
     ):
         expect(dialog.get_by_text(text, exact=text in {"4", "42.50"})).to_be_visible()
-    expect(dialog.get_by_role("link", name="Official event")).to_have_attribute(
+    expect(dialog.locator(".detail-grid").get_by_text("318", exact=True)).to_be_visible()
+    expect(dialog.get_by_role("link", name="Official event", exact=True)).to_have_attribute(
         "href", "https://example.com/signal"
     )
     expect(dialog.get_by_role("link", name="CTFtime listing")).to_have_attribute(
         "href", "https://ctftime.org/event/2601"
+    )
+    expect(dialog.get_by_role("link", name="Registration")).to_have_attribute(
+        "href", "https://example.com/signal/register"
     )
     expect(dialog.get_by_role("link", name="AI policy source")).to_have_count(0)
     expect(dialog.get_by_role("link", name="Download ICS")).to_have_attribute(
@@ -116,6 +155,18 @@ def test_direct_event_link_exposes_all_details_and_closes(
         scan_ledger.get_by_text("Official site and 1 rule page read", exact=True)
     ).to_be_visible()
     expect(scan_ledger.get_by_text("Verified, alerts allowed", exact=True)).to_be_visible()
+    provenance = dialog.get_by_role("region", name="Event sources")
+    expect(
+        provenance.get_by_role("link", name="Official event page: signal-official")
+    ).to_have_attribute("href", "https://example.com/signal")
+    expect(provenance.get_by_role("link", name="CTFtime API: ctftime")).to_have_attribute(
+        "href", "https://ctftime.org/event/2601"
+    )
+    analytics = dialog.get_by_role("region", name="Event analytics")
+    expect(analytics.get_by_text("42", exact=True)).to_be_visible()
+    expect(
+        analytics.get_by_text("web: 12, crypto: 8, pwn: 10, misc: 12", exact=True)
+    ).to_be_visible()
     intelligence = dialog.get_by_role("region", name="Event intelligence")
     expect(intelligence.get_by_text("Eligible divisions", exact=True)).to_be_visible()
     expect(intelligence.get_by_text("Open and student divisions", exact=True)).to_be_visible()
@@ -161,6 +212,23 @@ def test_unverified_ai_rules_are_prominent_and_never_claim_alerts(
         page.keyboard.press("Escape")
 
 
+def test_source_conflict_shows_both_values_and_citations(
+    page: Page, static_site_server: str
+) -> None:
+    page.add_init_script(SAVED_ZONE_SCRIPT)
+    page.goto(f"{static_site_server}/?month=2026-08&event=ctftime%3Aconflict")
+
+    warning = page.get_by_role("region", name="Sources disagree")
+    expect(warning.get_by_text("team_max", exact=True)).to_be_visible()
+    expect(warning.get_by_text("6 versus 4", exact=True)).to_be_visible()
+    expect(warning.get_by_role("link", name="preferred source")).to_have_attribute(
+        "href", "https://example.com/split/rules"
+    )
+    expect(warning.get_by_role("link", name="conflicting source")).to_have_attribute(
+        "href", "https://example.com/split/organizer"
+    )
+
+
 def test_phone_layout_has_selected_day_list_and_no_overflow(
     page: Page, static_site_server: str
 ) -> None:
@@ -193,6 +261,10 @@ def test_first_visit_confirms_detected_timezone(page: Page, static_site_server: 
     dialog = page.get_by_role("dialog", name="Confirm timezone")
     expect(dialog).to_be_visible()
     expect(dialog.get_by_text("America/New_York", exact=True)).to_be_visible()
+
+    results = Axe().run(page)
+    assert results.violations_count == 0, results.generate_report()
+
     dialog.get_by_role("button", name="Use America/New_York").click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_role("button", name="Change timezone: America/New_York")).to_be_visible()
@@ -289,6 +361,12 @@ def test_browser_back_restores_previous_month_and_closes_event(
 
 def test_public_calendar_has_no_axe_violations(page: Page, static_site_server: str) -> None:
     _open_august(page, static_site_server)
+
+    skip_link = page.get_by_role("link", name="Skip to calendar")
+    page.keyboard.press("Tab")
+    expect(skip_link).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("#calendar")).to_be_focused()
 
     results = Axe().run(page)
 

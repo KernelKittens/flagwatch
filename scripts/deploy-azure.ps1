@@ -256,13 +256,16 @@ try {
         FLAGWATCH_STORAGE_ACCOUNT_URL = "https://$storageName.blob.core.windows.net"
         FLAGWATCH_STORAGE_CONTAINER = 'flagwatch'
         FLAGWATCH_AI_ENABLED = 'true'
+        FLAGWATCH_AI_PROVIDER = 'azure_openai'
         FLAGWATCH_AI_MODEL = 'DeepSeek-V4-Pro'
         FLAGWATCH_AI_ENDPOINT = 'https://kitsunetechnologies.services.ai.azure.com/openai/v1/chat/completions'
         FLAGWATCH_AI_API_KEY = $aiApiKey
         FLAGWATCH_AI_TIMEOUT_SECONDS = '60'
         FLAGWATCH_SEND_ENABLED = 'false'
+        FLAGWATCH_CTFTIME_ENABLED = 'true'
         FLAGWATCH_CTFTIME_LOOKBACK_DAYS = '31'
         FLAGWATCH_CTFTIME_LOOKAHEAD_DAYS = '90'
+        FLAGWATCH_SOURCES_JSON = '{"sources":[{"kind":"watch","name":"hack-the-box-events","url":"https://www.hackthebox.com/events?hsLang=en","organizers":["Hack The Box"],"max_event_pages":12,"ai_discovery":true}]}'
     }
     Write-PrivateJsonFile -Path $aiSettingsPath -Value $aiSettings
     & az functionapp config appsettings set --resource-group $ResourceGroup --name $functionName `
@@ -299,7 +302,22 @@ try {
 
     Copy-Item -Path (Join-Path $repo 'site\*') -Destination $siteStage -Recurse -Force
     $apiBase = "https://$functionName.azurewebsites.net"
-    [IO.File]::WriteAllText((Join-Path $siteStage 'config.js'), "window.FLAGWATCH_API_BASE = '$apiBase';`n")
+    $siteConfig = @"
+window.FLAGWATCH_API_BASE = '$apiBase';
+window.FLAGWATCH_CONFIG = {
+  productName: 'KernelKittens Flagwatch',
+  organizationName: 'KernelKittens',
+  shortDescription: 'CTF events, official rules, and cited source intelligence.',
+  mark: 'K',
+  accentColor: '#006c7a',
+  defaultTimeZone: 'America/Chicago',
+  footerLinks: [
+    {label: 'Accessibility', url: '/accessibility'},
+    {label: 'Source policy', url: 'https://github.com/KernelKittens/flagwatch/blob/main/docs/source-policy.md'}
+  ]
+};
+"@
+    [IO.File]::WriteAllText((Join-Path $siteStage 'config.js'), $siteConfig)
     $token = & az staticwebapp secrets list --resource-group $ResourceGroup --name $swaName --query properties.apiKey -o tsv
     if ($LASTEXITCODE -ne 0 -or -not $token) { throw 'Could not obtain the Static Web Apps deployment token.' }
     $env:SWA_CLI_DEPLOYMENT_TOKEN = $token

@@ -1,0 +1,17 @@
+.git
+.github
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.venv
+.worktrees
+artifacts
+data
+docs
+infra
+tests
+*.db
+*.log
+.env
+.env.*
+!/.env.example

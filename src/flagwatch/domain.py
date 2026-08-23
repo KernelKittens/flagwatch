@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 
 class AiPolicy(StrEnum):
@@ -43,6 +43,80 @@ class IntelTopic(StrEnum):
     OTHER = "other"
 
 
+class SourceKind(StrEnum):
+    OFFICIAL_PAGE = "official_page"
+    ORGANIZER_PAGE = "organizer_page"
+    ICS = "ics"
+    JSON_FEED = "json_feed"
+    CTFD = "ctfd"
+    RCTF = "rctf"
+    CTFTIME = "ctftime"
+
+
+class SourceRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = Field(min_length=1, max_length=120)
+    kind: SourceKind
+    url: HttpUrl
+    record_id: str | None = Field(default=None, min_length=1, max_length=200)
+    collected_at: datetime
+
+    @field_validator("collected_at")
+    @classmethod
+    def collection_time_must_be_aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Source collection time must include a timezone")
+        return value
+
+
+class SourceConflict(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    field: str = Field(min_length=1, max_length=80)
+    chosen_value: str = Field(max_length=500)
+    other_value: str = Field(max_length=500)
+    chosen_source_url: HttpUrl
+    other_source_url: HttpUrl
+    detected_at: datetime
+    suppresses_alert: bool = False
+
+    @field_validator("detected_at")
+    @classmethod
+    def detection_time_must_be_aware(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Conflict detection time must include a timezone")
+        return value
+
+    @model_validator(mode="after")
+    def sources_must_be_distinct(self) -> SourceConflict:
+        if str(self.chosen_source_url).rstrip("/") == str(self.other_source_url).rstrip("/"):
+            raise ValueError("Conflict source URLs must be distinct")
+        return self
+
+
+class EventAnalytics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    challenges_total: int | None = Field(default=None, ge=0)
+    visible_solves: int | None = Field(default=None, ge=0)
+    scoreboard_entries: int | None = Field(default=None, ge=0)
+    participants_total: int | None = Field(default=None, ge=0)
+    categories: dict[str, int] = Field(default_factory=dict)
+
+    @field_validator("categories")
+    @classmethod
+    def categories_must_be_bounded(cls, value: dict[str, int]) -> dict[str, int]:
+        if len(value) > 64:
+            raise ValueError("Event analytics supports at most 64 categories")
+        for name, count in value.items():
+            if not name.strip() or len(name) > 80 or count < 0:
+                raise ValueError(
+                    "Analytics categories require bounded names and non-negative counts"
+                )
+        return value
+
+
 class IntelClaim(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -58,7 +132,7 @@ class Event(BaseModel):
     source_id: str
     title: str
     official_url: HttpUrl
-    ctftime_url: HttpUrl
+    ctftime_url: HttpUrl | None = None
     starts_at: datetime
     finishes_at: datetime
     online: bool
@@ -69,12 +143,20 @@ class Event(BaseModel):
     weight: Decimal | None = None
     organizers: list[str] = Field(default_factory=list)
     participants: int | None = None
+    primary_source_url: HttpUrl | None = None
+    registration_url: HttpUrl | None = None
+    platform: str | None = Field(default=None, max_length=80)
+    source_refs: list[SourceRef] = Field(default_factory=list, max_length=32)
+    conflicts: list[SourceConflict] = Field(default_factory=list, max_length=32)
+    analytics: EventAnalytics = Field(default_factory=EventAnalytics)
     raw: dict[str, object] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def finish_must_follow_start(self) -> Event:
         if self.finishes_at <= self.starts_at:
             raise ValueError("Event finish must follow its start")
+        if self.primary_source_url is None:
+            self.primary_source_url = self.official_url
         return self
 
     @property

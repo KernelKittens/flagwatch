@@ -64,6 +64,33 @@ class FakePolicyExtractor:
         return result
 
 
+def test_non_ctftime_event_uses_primary_source_for_seed_evidence(tmp_path):
+    database = Database(tmp_path / "flagwatch.db")
+    database.initialize()
+    start = datetime(2026, 9, 5, 14, tzinfo=UTC)
+    event = Event(
+        source="official-json",
+        source_id="event-1",
+        title="Official Feed CTF",
+        official_url="https://ctf.example/",
+        primary_source_url="https://feed.example/events.json",
+        starts_at=start,
+        finishes_at=start + timedelta(hours=24),
+        online=True,
+        description="Official event description",
+    )
+    service = SyncService(
+        database=database,
+        source=FakeSource(event, EventFacts()),
+        fetcher=FakeFetcher(),
+    )
+
+    scan = service._documents_for(event)
+
+    assert scan.documents[0].source_url == "https://feed.example/events.json"
+    assert scan.documents[0].source_url != "None"
+
+
 def test_repeated_sync_queues_one_alert(tmp_path):
     database = Database(tmp_path / "flagwatch.db")
     database.initialize()
@@ -267,9 +294,8 @@ def test_one_event_analysis_failure_does_not_block_later_events(tmp_path):
     assert report.imported == 2
     assert report.analyzed == 1
     assert len(database.list_events()) == 2
-    assert any(
-        "Event bad" in failure and "analysis crashed" in failure for failure in report.failures
-    )
+    assert any(failure == "Event bad: RuntimeError" for failure in report.failures)
+    assert all("analysis crashed" not in failure for failure in report.failures)
 
 
 def test_empty_javascript_shell_is_limited_not_successful(tmp_path):

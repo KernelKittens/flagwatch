@@ -84,14 +84,14 @@ def test_discovers_only_bounded_same_origin_script_assets():
 
 
 def test_extracts_only_policy_string_literals_without_executing_javascript():
-    source = r'''
+    source = r"""
     steal(document.cookie);
     const noise = "ordinary event copy";
     const matcher = /"quote-inside-a-javascript-regex/;
     const internals = "function ai(e){return e===null?null:e.value}";
     const policy = "We have a strict no-AI policy for the Danish competition.";
     const detail = 'All challenge work must comply with the Danish no-AI policy.';
-    '''
+    """
 
     evidence = extract_javascript_evidence(source)
 
@@ -104,13 +104,13 @@ def test_extracts_only_policy_string_literals_without_executing_javascript():
 
 
 def test_discovers_bounded_explicit_https_rule_links_from_javascript():
-    source = r'''
+    source = r"""
     const matcher = /"quote-inside-a-javascript-regex/;
     const rules = "https://danmark.brunnerctf.dk/rules";
     const faq = "/faq#policy";
     const chat = "https://discord.gg/example";
     const insecure = "http://other.example/rules";
-    '''
+    """
 
     assert discover_embedded_rule_links("https://ctf.brunnerne.dk/", source) == [
         "https://danmark.brunnerctf.dk/rules",

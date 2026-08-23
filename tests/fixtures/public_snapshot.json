@@ -11,6 +11,33 @@
       "title": "Midwest Signal CTF",
       "official_url": "https://example.com/signal",
       "ctftime_url": "https://ctftime.org/event/2601",
+      "primary_source_url": "https://example.com/signal",
+      "registration_url": "https://example.com/signal/register",
+      "platform": "CTFd",
+      "source_refs": [
+        {
+          "source": "signal-official",
+          "kind": "official_page",
+          "url": "https://example.com/signal",
+          "record_id": "signal-2026",
+          "collected_at": "2026-08-14T17:55:00Z"
+        },
+        {
+          "source": "ctftime",
+          "kind": "ctftime",
+          "url": "https://ctftime.org/event/2601",
+          "record_id": "2601",
+          "collected_at": "2026-08-14T17:54:00Z"
+        }
+      ],
+      "conflicts": [],
+      "analytics": {
+        "challenges_total": 42,
+        "visible_solves": 620,
+        "scoreboard_entries": 115,
+        "participants_total": 318,
+        "categories": {"web": 12, "crypto": 8, "pwn": 10, "misc": 12}
+      },
       "starts_at": "2026-08-21T15:00:00Z",
       "finishes_at": "2026-08-23T21:00:00Z",
       "online": true,
@@ -126,6 +153,37 @@
       "title": "Split Decision CTF",
       "official_url": "https://example.com/split",
       "ctftime_url": "https://ctftime.org/event/2605",
+      "primary_source_url": "https://example.com/split",
+      "registration_url": null,
+      "platform": null,
+      "source_refs": [
+        {
+          "source": "split-rules",
+          "kind": "official_page",
+          "url": "https://example.com/split/rules",
+          "record_id": "split-rules",
+          "collected_at": "2026-08-14T17:52:00Z"
+        },
+        {
+          "source": "split-organizer",
+          "kind": "organizer_page",
+          "url": "https://example.com/split/organizer",
+          "record_id": "split-organizer",
+          "collected_at": "2026-08-14T17:51:00Z"
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "team_max",
+          "chosen_value": "6",
+          "other_value": "4",
+          "chosen_source_url": "https://example.com/split/rules",
+          "other_source_url": "https://example.com/split/organizer",
+          "detected_at": "2026-08-14T17:52:00Z",
+          "suppresses_alert": true
+        }
+      ],
+      "analytics": {"challenges_total": null, "visible_solves": null, "scoreboard_entries": null, "participants_total": null, "categories": {}},
       "starts_at": "2026-08-22T20:00:00Z",
       "finishes_at": "2026-08-23T00:00:00Z",
       "online": true,
