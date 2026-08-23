@@ -42,14 +42,16 @@ def _event(source_id: str, starts_at: datetime) -> Event:
     )
 
 
-def test_permanent_defaults_include_history_and_deepseek_pro(tmp_path, monkeypatch) -> None:
+def test_permanent_defaults_include_history_and_optional_model(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     settings = Settings()
 
     assert settings.ctftime_lookback_days == 31
     assert settings.ctftime_lookahead_days == 90
-    assert settings.ai_model == "DeepSeek-V4-Pro"
+    assert settings.ai_enabled is False
+    assert settings.ai_provider == "openai"
+    assert settings.ai_model == "gpt-5-mini"
 
 
 def test_ctftime_source_chunks_long_range_and_deduplicates(gaslight_payload) -> None:

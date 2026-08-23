@@ -62,9 +62,7 @@ class CtfdSource:
             challenges = _ctfd_data(self.api.get_json("challenges"))
             challenge_rows = [row for row in challenges if isinstance(row, dict)]
             challenges_total = len(challenge_rows)
-            visible_solves = sum(
-                max(0, int(row.get("solves") or 0)) for row in challenge_rows
-            )
+            visible_solves = sum(max(0, int(row.get("solves") or 0)) for row in challenge_rows)
             for row in challenge_rows:
                 category = str(row.get("category") or "Uncategorized").strip()[:80]
                 categories[category] = categories.get(category, 0) + 1

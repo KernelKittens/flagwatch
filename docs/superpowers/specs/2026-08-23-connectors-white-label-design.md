@@ -47,6 +47,7 @@ Every connector implements one read-only contract:
 ```python
 class EventSource(Protocol):
     source_name: str
+
     def fetch_events(self, start: datetime, finish: datetime) -> EventBatch: ...
 ```
 
