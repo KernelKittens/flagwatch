@@ -226,7 +226,7 @@ class CompositeSource:
             try:
                 batch = source.fetch_events(start, finish)
             except Exception as error:
-                failures.append(f"{source.source_name}: {type(error).__name__}: {error}")
+                failures.append(f"{source.source_name}: {type(error).__name__}")
                 continue
             failures.extend(batch.failures)
             for event, facts in batch.events:

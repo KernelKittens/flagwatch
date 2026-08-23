@@ -22,6 +22,14 @@ class StubSource:
         return EventBatch(events=self.events, failures=self.failures)
 
 
+class CrashingSource:
+    source_name = "broken"
+    precedence = 10
+
+    def fetch_events(self, start: datetime, finish: datetime) -> EventBatch:
+        raise RuntimeError("token=must-not-leak")
+
+
 def make_event(
     source: str,
     source_id: str,
@@ -181,3 +189,14 @@ def test_source_failures_do_not_remove_healthy_events() -> None:
 
     assert [event.key for event, _ in batch.events] == ["healthy:1"]
     assert batch.failures == ["broken: timeout"]
+
+
+def test_unexpected_source_failure_does_not_expose_exception_text() -> None:
+    batch = CompositeSource([CrashingSource()]).fetch_events(
+        datetime(2026, 8, 1, tzinfo=UTC),
+        datetime(2026, 10, 1, tzinfo=UTC),
+    )
+
+    assert batch.events == []
+    assert batch.failures == ["broken: RuntimeError"]
+    assert "must-not-leak" not in batch.failures[0]
