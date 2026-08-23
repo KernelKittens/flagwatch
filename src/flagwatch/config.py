@@ -14,11 +14,14 @@ class Settings(BaseSettings):
     )
 
     database_path: Path = Field(default_factory=lambda: Path.cwd() / "data" / "flagwatch.db")
+    ctftime_enabled: bool = True
     ctftime_base_url: HttpUrl = HttpUrl("https://ctftime.org/api/v1")
     ctftime_lookback_days: int = Field(default=31, ge=1, le=366)
     ctftime_lookahead_days: int = Field(default=90, ge=1, le=366)
     request_timeout_seconds: float = 10.0
     max_response_bytes: int = 2 * 1024 * 1024
+    sources_path: Path | None = None
+    sources_json: str | None = None
     send_enabled: bool = False
     discord_webhook_url: SecretStr | None = None
     smtp_host: str | None = None
@@ -28,6 +31,7 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     smtp_to: str | None = None
     ai_enabled: bool = False
+    ai_provider: str = "azure_openai"
     ai_endpoint: HttpUrl = HttpUrl(
         "https://kitsunetechnologies.services.ai.azure.com/openai/v1/chat/completions"
     )

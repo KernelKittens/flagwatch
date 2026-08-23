@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timedelta
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import httpx
 from pydantic import HttpUrl
 
-from flagwatch.domain import Event, EventFacts, ScheduleMode
+from flagwatch.domain import Event, EventFacts, ScheduleMode, SourceKind, SourceRef
 from flagwatch.rule_pages import extract_readable_text
 from flagwatch.sources import EventBatch
 
@@ -65,7 +66,10 @@ def _decimal_or_none(value: object) -> Decimal | None:
         return None
 
 
-def normalize_ctftime_event(payload: dict[str, Any]) -> tuple[Event, EventFacts]:
+def normalize_ctftime_event(
+    payload: dict[str, Any],
+    collected_at: datetime | None = None,
+) -> tuple[Event, EventFacts]:
     description = extract_readable_text(str(payload.get("description") or ""))
     prizes = extract_readable_text(str(payload.get("prizes") or ""))
     onsite = bool(payload.get("onsite", False))
@@ -92,6 +96,16 @@ def normalize_ctftime_event(payload: dict[str, Any]) -> tuple[Event, EventFacts]
         participants=(
             int(payload["participants"]) if payload.get("participants") is not None else None
         ),
+        primary_source_url=HttpUrl(str(payload["url"])),
+        source_refs=[
+            SourceRef(
+                source="ctftime",
+                kind=SourceKind.CTFTIME,
+                url=HttpUrl(str(payload["ctftime_url"])),
+                record_id=str(payload["id"]),
+                collected_at=collected_at or datetime.now(UTC),
+            )
+        ],
         raw=dict(payload),
     )
     facts = EventFacts(
@@ -104,13 +118,18 @@ def normalize_ctftime_event(payload: dict[str, Any]) -> tuple[Event, EventFacts]
 
 
 class CtftimeSource:
+    source_name = "ctftime"
+    precedence = 20
+
     def __init__(
         self,
         client: httpx.Client | None = None,
         base_url: str = "https://ctftime.org/api/v1",
+        now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self.client = client or httpx.Client(timeout=10.0)
         self.base_url = base_url.rstrip("/")
+        self.now = now
 
     def _fetch_window(self, start: datetime, finish: datetime) -> list[object]:
         response = self.client.get(
@@ -170,7 +189,7 @@ class CtftimeSource:
                     failures.append(f"CTFtime record {record_number}: expected an object")
                     continue
                 try:
-                    event, facts = normalize_ctftime_event(item)
+                    event, facts = normalize_ctftime_event(item, self.now())
                     by_key[event.key] = (event, facts)
                 except Exception as error:
                     failures.append(

@@ -9,6 +9,7 @@ import typer
 import uvicorn
 
 from flagwatch.analysis.llm import LlmPolicyExtractor
+from flagwatch.analysis.providers import build_model_connector
 from flagwatch.config import Settings
 from flagwatch.fetching import GuardedFetcher
 from flagwatch.notifications import (
@@ -17,7 +18,7 @@ from flagwatch.notifications import (
     SmtpSender,
     deliver_pending,
 )
-from flagwatch.sources.ctftime import CtftimeSource
+from flagwatch.sources.factory import build_event_source
 from flagwatch.storage import Database
 from flagwatch.sync import SyncService
 from flagwatch.web import create_app
@@ -51,17 +52,25 @@ def build_sync_service(settings: Settings, *, queue_notifications: bool = True) 
     source_client = httpx.Client(timeout=settings.request_timeout_seconds)
     page_client = httpx.Client(timeout=settings.request_timeout_seconds)
     policy_extractor = None
-    if settings.ai_enabled and settings.ai_api_key is not None:
-        policy_extractor = LlmPolicyExtractor(
-            client=httpx.Client(timeout=settings.ai_timeout_seconds),
+    if settings.ai_enabled:
+        model_client = httpx.Client(timeout=settings.ai_timeout_seconds)
+        connector = build_model_connector(
+            provider=settings.ai_provider,
+            client=model_client,
             endpoint=str(settings.ai_endpoint),
-            api_key=settings.ai_api_key.get_secret_value(),
+            api_key=(
+                settings.ai_api_key.get_secret_value()
+                if settings.ai_api_key is not None
+                else None
+            ),
             model=settings.ai_model,
         )
+        policy_extractor = LlmPolicyExtractor(connector=connector)
+    fetcher = GuardedFetcher(page_client, max_bytes=settings.max_response_bytes)
     return SyncService(
         database=database,
-        source=CtftimeSource(source_client, str(settings.ctftime_base_url)),
-        fetcher=GuardedFetcher(page_client, max_bytes=settings.max_response_bytes),
+        source=build_event_source(settings, source_client, fetcher),
+        fetcher=fetcher,
         lookahead_days=settings.ctftime_lookahead_days,
         lookback_days=settings.ctftime_lookback_days,
         policy_extractor=policy_extractor,

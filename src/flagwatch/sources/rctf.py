@@ -32,8 +32,11 @@ class RctfSource:
         client: httpx.Client | None = None,
         token: str | None = None,
         resolver: Resolver = resolve_public_addresses,
+        *,
+        name: str = "rctf",
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
+        self.source_name = name
         self.base_url = base_url.rstrip("/") + "/"
         self.event = event
         self.now = now
