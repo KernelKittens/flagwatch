@@ -395,7 +395,7 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
 .timezone-card select { width: 100%; min-height: 46px; padding: 8px; border: 1px solid #6c8797; border-radius: 0; color: var(--ink); background: var(--surface-raised); }
 .dialog-actions { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 9px; }
 .dialog-actions button { min-height: 44px; padding: 9px 14px; border: 1px solid #6c8797; border-radius: 0; color: var(--ink); background: var(--surface-raised); cursor: pointer; }
-.dialog-actions .primary { color: #031019; border-color: var(--accent); background: var(--accent); }
+.dialog-actions .primary { color: #fff; border-color: var(--accent); background: var(--accent); }
 .noscript { margin: 20px; padding: 14px; border: 2px solid var(--banned); background: var(--surface); }
 
 .event-chip .event-name,

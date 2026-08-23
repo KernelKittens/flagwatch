@@ -261,6 +261,10 @@ def test_first_visit_confirms_detected_timezone(page: Page, static_site_server: 
     dialog = page.get_by_role("dialog", name="Confirm timezone")
     expect(dialog).to_be_visible()
     expect(dialog.get_by_text("America/New_York", exact=True)).to_be_visible()
+
+    results = Axe().run(page)
+    assert results.violations_count == 0, results.generate_report()
+
     dialog.get_by_role("button", name="Use America/New_York").click()
     expect(dialog).not_to_be_visible()
     expect(page.get_by_role("button", name="Change timezone: America/New_York")).to_be_visible()
