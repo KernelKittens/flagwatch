@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -13,6 +14,9 @@ from flagwatch.rule_pages import extract_readable_text
 from flagwatch.sources import EventBatch
 
 USER_AGENT = "Flagwatch/0.1 personal CTF research"
+QUERY_WINDOW_DAYS = 30
+MAX_EVENTS_PER_REQUEST = 100
+MIN_QUERY_WINDOW = timedelta(hours=1)
 NUMBER_WORDS = {
     "one": 1,
     "two": 2,
@@ -108,11 +112,11 @@ class CtftimeSource:
         self.client = client or httpx.Client(timeout=10.0)
         self.base_url = base_url.rstrip("/")
 
-    def fetch_events(self, start: datetime, finish: datetime) -> EventBatch:
+    def _fetch_window(self, start: datetime, finish: datetime) -> list[object]:
         response = self.client.get(
             f"{self.base_url}/events/",
             params={
-                "limit": 100,
+                "limit": MAX_EVENTS_PER_REQUEST,
                 "start": int(start.timestamp()),
                 "finish": int(finish.timestamp()),
             },
@@ -122,14 +126,56 @@ class CtftimeSource:
         payload = response.json()
         if not isinstance(payload, list):
             raise ValueError("CTFtime returned an unexpected event response")
-        events: list[tuple[Event, EventFacts]] = []
+        return payload
+
+    def _fetch_complete_window(self, start: datetime, finish: datetime) -> list[object]:
+        payload = self._fetch_window(start, finish)
+        if len(payload) < MAX_EVENTS_PER_REQUEST:
+            return payload
+        if finish - start <= MIN_QUERY_WINDOW:
+            raise ValueError(
+                "CTFtime returned a saturated event response for the minimum query window"
+            )
+        midpoint = start + ((finish - start) / 2)
+        return self._fetch_complete_window(start, midpoint) + self._fetch_complete_window(
+            midpoint, finish
+        )
+
+    def fetch_events(self, start: datetime, finish: datetime) -> EventBatch:
+        if finish <= start:
+            return EventBatch(events=[], failures=[])
+        by_key: dict[str, tuple[Event, EventFacts]] = {}
         failures: list[str] = []
-        for index, item in enumerate(payload, start=1):
-            if not isinstance(item, dict):
-                failures.append(f"CTFtime record {index}: expected an object")
-                continue
+        seen_records: set[str] = set()
+        cursor = start
+        record_number = 0
+        while cursor < finish:
+            window_finish = min(cursor + timedelta(days=QUERY_WINDOW_DAYS), finish)
             try:
-                events.append(normalize_ctftime_event(item))
-            except Exception as error:
-                failures.append(f"CTFtime record {index}: {type(error).__name__}: {error}")
+                payload = self._fetch_complete_window(cursor, window_finish)
+            except (httpx.HTTPError, ValueError) as error:
+                failures.append(
+                    f"CTFtime {cursor.date()} to {window_finish.date()}: "
+                    f"{type(error).__name__}: {error}"
+                )
+                cursor = window_finish
+                continue
+            for item in payload:
+                record_key = json.dumps(item, sort_keys=True, default=str)
+                if record_key in seen_records:
+                    continue
+                seen_records.add(record_key)
+                record_number += 1
+                if not isinstance(item, dict):
+                    failures.append(f"CTFtime record {record_number}: expected an object")
+                    continue
+                try:
+                    event, facts = normalize_ctftime_event(item)
+                    by_key[event.key] = (event, facts)
+                except Exception as error:
+                    failures.append(
+                        f"CTFtime record {record_number}: {type(error).__name__}: {error}"
+                    )
+            cursor = window_finish
+        events = sorted(by_key.values(), key=lambda item: (item[0].starts_at, item[0].key))
         return EventBatch(events=events, failures=failures)

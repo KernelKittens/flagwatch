@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,8 +12,8 @@ from pydantic import BaseModel, Field
 
 from flagwatch.analysis.evidence import EvidenceDocument
 from flagwatch.analysis.facts import extract_event_facts
-from flagwatch.analysis.llm import LlmPolicyResponse
-from flagwatch.domain import AiPolicy, Event, EventFacts, SourceScanStatus
+from flagwatch.analysis.llm import LlmPolicyResponse, normalize_model_text
+from flagwatch.domain import AiPolicy, Event, EventFacts, IntelClaim, SourceScanStatus
 from flagwatch.fetching import FetchedPage, FetchError
 from flagwatch.matching import match_event
 from flagwatch.notifications import queue_alert
@@ -37,6 +38,8 @@ class PageFetcher(Protocol):
 
 
 class PolicyExtractor(Protocol):
+    model: str
+
     def try_extract(self, documents: Sequence[EvidenceDocument]) -> LlmPolicyResponse | None: ...
 
 
@@ -62,6 +65,37 @@ class SourceScan:
 MIN_READABLE_CHARACTERS = 40
 
 
+def _normalized_text(value: str) -> str:
+    return " ".join(normalize_model_text(value).split()).casefold()
+
+
+def _source_fingerprint(documents: Sequence[EvidenceDocument]) -> str:
+    digest = hashlib.sha256()
+    for document in documents:
+        digest.update(document.source_url.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_normalized_text(document.text).encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _matching_source(
+    documents: Sequence[EvidenceDocument],
+    source_url: str,
+    evidence: str,
+) -> str | None:
+    normalized_evidence = _normalized_text(evidence)
+    if not normalized_evidence:
+        return None
+    requested_url = source_url.rstrip("/")
+    for document in documents:
+        if document.source_url.rstrip("/") != requested_url:
+            continue
+        if normalized_evidence in _normalized_text(document.text):
+            return document.source_url
+    return None
+
+
 class SyncService:
     def __init__(
         self,
@@ -70,6 +104,7 @@ class SyncService:
         fetcher: PageFetcher,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
         lookahead_days: int = 90,
+        lookback_days: int = 31,
         policy_extractor: PolicyExtractor | None = None,
         queue_notifications: bool = True,
     ) -> None:
@@ -78,43 +113,90 @@ class SyncService:
         self.fetcher = fetcher
         self.now = now
         self.lookahead_days = lookahead_days
+        self.lookback_days = lookback_days
         self.policy_extractor = policy_extractor
         self.queue_notifications = queue_notifications
 
-    def _apply_model_policy(
+    def _validated_claims(
         self,
-        facts: EventFacts,
+        claims: Sequence[IntelClaim],
         documents: Sequence[EvidenceDocument],
+    ) -> list[IntelClaim]:
+        validated: list[IntelClaim] = []
+        seen: set[tuple[str, str, str]] = set()
+        for claim in claims:
+            source = _matching_source(documents, str(claim.source_url), claim.evidence)
+            if source is None:
+                continue
+            key = (claim.topic.value, claim.label.casefold(), claim.value.casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            validated.append(
+                claim.model_copy(
+                    update={
+                        "label": normalize_model_text(claim.label),
+                        "value": normalize_model_text(claim.value),
+                        "evidence": normalize_model_text(claim.evidence),
+                    }
+                )
+            )
+        return validated
+
+    def _reuse_cached_analysis(self, facts: EventFacts, previous: EventFacts) -> EventFacts:
+        updates: dict[str, object] = {
+            "intel_claims": previous.intel_claims,
+            "intel_source_fingerprint": previous.intel_source_fingerprint,
+            "intel_model": previous.intel_model,
+            "intel_analyzed_at": previous.intel_analyzed_at,
+            "intel_stale": False,
+        }
+        return facts.model_copy(update=updates)
+
+    def _preserve_previous_intel(
+        self, facts: EventFacts, previous: EventFacts | None
     ) -> EventFacts:
-        if (
-            self.policy_extractor is None
-            or facts.ai_policy is not AiPolicy.UNKNOWN
-            or facts.ai_policy_conflicting
-        ):
-            return facts
-        result = self.policy_extractor.try_extract(documents)
-        if result is None:
-            return facts
-        evidence = " ".join(result.evidence.split()).casefold()
-        source = next(
-            (
-                document.source_url
-                for document in documents
-                if evidence in " ".join(document.text.split()).casefold()
-            ),
-            None,
-        )
-        if source is None:
+        if previous is None or not previous.intel_claims:
             return facts
         return facts.model_copy(
             update={
-                "ai_policy": result.policy,
-                "ai_policy_reason": result.reason,
-                "ai_policy_source": source,
-                "ai_policy_evidence": result.evidence,
-                "ai_policy_confidence": result.confidence,
+                "intel_claims": previous.intel_claims,
+                "intel_source_fingerprint": previous.intel_source_fingerprint,
+                "intel_model": previous.intel_model,
+                "intel_analyzed_at": previous.intel_analyzed_at,
+                "intel_stale": True,
             }
         )
+
+    def _apply_model_analysis(
+        self,
+        facts: EventFacts,
+        documents: Sequence[EvidenceDocument],
+        previous: EventFacts | None,
+    ) -> EventFacts:
+        fingerprint = _source_fingerprint(documents)
+        if (
+            previous is not None
+            and previous.intel_source_fingerprint == fingerprint
+            and previous.intel_analyzed_at is not None
+        ):
+            return self._reuse_cached_analysis(facts, previous)
+        if self.policy_extractor is None:
+            return self._preserve_previous_intel(facts, previous)
+        result = self.policy_extractor.try_extract(documents)
+        if result is None:
+            return self._preserve_previous_intel(facts, previous)
+
+        updates: dict[str, object] = {
+            "intel_claims": self._validated_claims(getattr(result, "claims", []), documents),
+            "intel_source_fingerprint": fingerprint,
+            "intel_model": getattr(
+                self.policy_extractor, "model", type(self.policy_extractor).__name__
+            ),
+            "intel_analyzed_at": self.now(),
+            "intel_stale": False,
+        }
+        return facts.model_copy(update=updates)
 
     def _documents_for(self, event: Event) -> SourceScan:
         failures: list[str] = []
@@ -209,8 +291,9 @@ class SyncService:
 
     def run(self) -> SyncReport:
         report = SyncReport()
-        start = self.now()
-        finish = start + timedelta(days=self.lookahead_days)
+        current = self.now()
+        start = current - timedelta(days=self.lookback_days)
+        finish = current + timedelta(days=self.lookahead_days)
         criteria = self.database.get_criteria()
         batch = self.source.fetch_events(start, finish)
         report.failures.extend(batch.failures)
@@ -232,6 +315,7 @@ class SyncService:
                         update={
                             "analysis_stale": True,
                             "analysis_error": "; ".join(scan.failures)[:1000],
+                            "intel_stale": bool(facts.intel_claims),
                             "source_scan_status": scan.status,
                             "source_scan_reason": scan.reason,
                             "source_pages_checked": scan.pages_checked,
@@ -241,7 +325,11 @@ class SyncService:
                     )
                 else:
                     facts = extract_event_facts(scan.documents, seed)
-                    facts = self._apply_model_policy(facts, scan.documents)
+                    facts = self._apply_model_analysis(
+                        facts,
+                        scan.documents,
+                        previous.facts if previous is not None else None,
+                    )
                     facts = facts.model_copy(
                         update={
                             "analyzed_at": checked_at,
@@ -249,6 +337,8 @@ class SyncService:
                             "analysis_error": (
                                 "; ".join(scan.failures)[:1000] if scan.failures else None
                             ),
+                            "intel_stale": facts.intel_stale
+                            or scan.status is not SourceScanStatus.READ,
                             "source_scan_status": scan.status,
                             "source_scan_reason": scan.reason,
                             "source_pages_checked": scan.pages_checked,

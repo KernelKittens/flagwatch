@@ -3,6 +3,9 @@
 
   const FALLBACK_ZONE = "America/Chicago";
   const ZONE_KEY = "flagwatch.timeZone";
+  const SNAPSHOT_KEY = "flagwatch.snapshot.v1";
+  const SNAPSHOT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  const FETCH_DELAYS_MS = [0, 250, 750];
   const savedZone = readSavedZone();
   const initialZone = savedZone || detectZone();
   const state = {
@@ -340,6 +343,13 @@
     return value === null || value === undefined || value === "" ? fallback : String(value);
   }
 
+  function eventStatus(event) {
+    const now = Date.now();
+    if (now >= new Date(event.finishes_at).getTime()) return "Finished";
+    if (now >= new Date(event.starts_at).getTime()) return "Live now";
+    return "Upcoming";
+  }
+
   function icsTimestamp(value) {
     return new Date(value)
       .toISOString()
@@ -431,6 +441,63 @@
       </section>`;
   }
 
+  function intelTopicLabel(topic) {
+    return {
+      overview: "Overview",
+      eligibility: "Eligibility",
+      registration: "Registration",
+      format: "Format",
+      schedule: "Schedule",
+      prizes: "Prizes",
+      conduct: "Conduct",
+      flag_sharing: "Flag sharing",
+      platform: "Platform",
+      ai_policy: "AI policy",
+      other: "Other rules",
+    }[topic] || "Other rules";
+  }
+
+  function eventIntelligence(event) {
+    const claims = Array.isArray(event.intel_claims) ? event.intel_claims : [];
+    if (!claims.length) return "";
+    const grouped = new Map();
+    claims.forEach((claim) => {
+      const topic = intelTopicLabel(claim.topic);
+      if (!grouped.has(topic)) grouped.set(topic, []);
+      grouped.get(topic).push(claim);
+    });
+    const groups = [...grouped.entries()].map(([topic, topicClaims]) => `
+      <section class="intel-group" aria-labelledby="intel-${slug(topic)}">
+        <h4 id="intel-${slug(topic)}">${escapeHtml(topic)}</h4>
+        <div class="intel-claims">
+          ${topicClaims.map((claim) => `
+            <article class="intel-claim">
+              <div class="intel-claim-heading">
+                <h5>${escapeHtml(claim.label)}</h5>
+                <a href="${escapeHtml(claim.source_url)}" target="_blank" rel="noopener noreferrer" aria-label="Source for ${escapeHtml(claim.label)}">Official source</a>
+              </div>
+              <p class="intel-value">${escapeHtml(claim.value)}</p>
+              <blockquote>${escapeHtml(claim.evidence)}</blockquote>
+            </article>`).join("")}
+        </div>
+      </section>`).join("");
+    const analyzed = event.intel_analyzed_at
+      ? `Checked ${formatDateTime(event.intel_analyzed_at)}`
+      : "Analysis time unavailable";
+    const model = event.intel_model ? ` with ${event.intel_model}` : "";
+    const stale = event.intel_stale ? " Saved intelligence is marked stale." : "";
+    return `
+      <section class="event-intel" aria-labelledby="event-intel-title">
+        <div class="event-intel-heading">
+          <p class="eyebrow">Rules dossier</p>
+          <h3 id="event-intel-title">Event intelligence</h3>
+          <p>Extracted from public event sources${escapeHtml(model)}. Every item includes the supporting quote.</p>
+          <small>${escapeHtml(analyzed)}.${escapeHtml(stale)}</small>
+        </div>
+        ${groups}
+      </section>`;
+  }
+
   function scheduleLabel(event) {
     if (event.schedule_mode === "staggered") return "Staggered";
     if (event.schedule_mode === "fixed") return "Fixed";
@@ -446,6 +513,7 @@
   function openEvent(event, updateHistory = true) {
     elements.eventTitle.textContent = event.title;
     const details = [
+      ["Status", eventStatus(event)],
       ["Starts", formatDateTime(event.starts_at)],
       ["Ends", formatDateTime(event.finishes_at)],
       ["Duration", duration(event)],
@@ -464,6 +532,7 @@
     elements.eventBody.innerHTML = `
       ${policyVerdict(event)}
       ${scanLedger(event)}
+      ${eventIntelligence(event)}
       <dl class="detail-grid">${details.map(([term, value]) => `<div class="detail-item"><dt>${escapeHtml(term)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>
       <nav class="event-links" aria-label="Event links">
         <a href="${escapeHtml(event.official_url)}" target="_blank" rel="noopener noreferrer">Official event</a>
@@ -509,21 +578,89 @@
     }
   }
 
-  async function loadEvents() {
+  function delay(milliseconds) {
+    return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  }
+
+  function validSnapshot(payload) {
+    return Boolean(
+      payload &&
+      typeof payload.generated_at === "string" &&
+      Array.isArray(payload.events),
+    );
+  }
+
+  function saveSnapshot(payload) {
     try {
-      const apiBase = String(window.FLAGWATCH_API_BASE || "").replace(/\/$/, "");
-      const response = await fetch(`${apiBase}/api/events`, {headers: {Accept: "application/json"}});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json();
-      state.events = Array.isArray(payload.events) ? payload.events : [];
-      state.scanSummary = payload.scan_summary || null;
-      state.generatedAt = payload.generated_at || null;
-      renderScanSummary();
-      elements.status.textContent = `Times shown in ${state.timeZone}.`;
-      renderCalendar();
-      const event = eventFromUrl();
-      if (event) openEvent(event, false);
+      localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({
+        saved_at: new Date().toISOString(),
+        payload,
+      }));
     } catch (_) {
+      return;
+    }
+  }
+
+  function readSnapshot() {
+    try {
+      const cached = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || "null");
+      if (!cached || !validSnapshot(cached.payload)) return null;
+      const savedAt = new Date(cached.saved_at).getTime();
+      if (!Number.isFinite(savedAt) || Date.now() - savedAt > SNAPSHOT_MAX_AGE_MS) return null;
+      return cached.payload;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function fetchSnapshot(url) {
+    let lastError;
+    for (const wait of FETCH_DELAYS_MS) {
+      if (wait) await delay(wait);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(url, {
+          headers: {Accept: "application/json"},
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        if (!validSnapshot(payload)) throw new Error("Invalid calendar snapshot");
+        return payload;
+      } catch (error) {
+        lastError = error;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    throw lastError || new Error("Calendar request failed");
+  }
+
+  function applySnapshot(payload) {
+    state.events = payload.events;
+    state.scanSummary = payload.scan_summary || null;
+    state.generatedAt = payload.generated_at;
+    renderScanSummary();
+    renderCalendar();
+    const event = eventFromUrl();
+    if (event) openEvent(event, false);
+  }
+
+  async function loadEvents() {
+    const apiBase = String(window.FLAGWATCH_API_BASE || "").replace(/\/$/, "");
+    try {
+      const payload = await fetchSnapshot(`${apiBase}/api/events`);
+      saveSnapshot(payload);
+      applySnapshot(payload);
+      elements.status.textContent = `Times shown in ${state.timeZone}.`;
+    } catch (_) {
+      const cached = readSnapshot();
+      if (cached) {
+        applySnapshot(cached);
+        elements.status.textContent = `Showing saved calendar data from ${formatDateTime(cached.generated_at)}. Live refresh is temporarily unavailable. Times shown in ${state.timeZone}.`;
+        return;
+      }
       elements.status.textContent = "The calendar feed is unavailable right now. Please try again shortly.";
       renderCalendar();
     }

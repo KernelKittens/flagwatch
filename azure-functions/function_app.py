@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from threading import Lock
 
 import azure.functions as func
 from azure.core.exceptions import ResourceNotFoundError
@@ -14,6 +15,8 @@ from flagwatch.config import Settings
 from flagwatch.storage import Database
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+_payload_lock = Lock()
+_last_good_payload: bytes | None = None
 
 
 class AzureBlobStore:
@@ -51,7 +54,6 @@ def run_sync(database: Database) -> object:
     settings = Settings(
         database_path=database.path,
         send_enabled=False,
-        ai_enabled=False,
     )
     report = build_sync_service(settings, queue_notifications=False).run()
     if report.analyzed and report.verified_policies == 0:
@@ -67,19 +69,35 @@ def run_sync(database: Database) -> object:
 @app.route(route="events", methods=["GET"])
 def events(req: func.HttpRequest) -> func.HttpResponse:
     del req
-    payload = blob_store().download(CloudSnapshotService.public_blob)
+    global _last_good_payload
+
+    payload: bytes | None = None
+    source = "blob"
+    try:
+        payload = blob_store().download(CloudSnapshotService.public_blob)
+    except Exception:
+        logging.exception("Flagwatch could not read the public snapshot")
+    with _payload_lock:
+        if payload is not None:
+            _last_good_payload = payload
+        elif _last_good_payload is not None:
+            payload = _last_good_payload
+            source = "memory-cache"
     if payload is None:
         return func.HttpResponse(
             '{"error":"Calendar data is not ready yet."}',
             status_code=503,
             mimetype="application/json",
-            headers={"Cache-Control": "no-store", "Retry-After": "300"},
+            headers={"Cache-Control": "no-store", "Retry-After": "30"},
         )
     return func.HttpResponse(
         payload,
         status_code=200,
         mimetype="application/json",
-        headers={"Cache-Control": "public, max-age=300, stale-if-error=86400"},
+        headers={
+            "Cache-Control": "public, max-age=300, stale-if-error=86400",
+            "X-Flagwatch-Data-Source": source,
+        },
     )
 
 

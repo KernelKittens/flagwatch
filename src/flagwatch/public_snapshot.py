@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, HttpUrl, field_serializer, field_validator
 
-from flagwatch.domain import AiPolicy, ScheduleMode, SourceScanStatus
+from flagwatch.domain import AiPolicy, IntelClaim, ScheduleMode, SourceScanStatus
 from flagwatch.storage import Database
 
 
@@ -37,6 +37,10 @@ class PublicEvent(BaseModel):
     prize_summary: str | None
     registration_status: str | None
     categories: list[str]
+    intel_claims: list[IntelClaim]
+    intel_model: str | None
+    intel_analyzed_at: datetime | None
+    intel_stale: bool
     source_scan_status: SourceScanStatus
     source_scan_reason: str
     source_pages_checked: int
@@ -54,7 +58,7 @@ class PublicEvent(BaseModel):
     def serialize_timestamp(self, value: datetime) -> str:
         return value.isoformat().replace("+00:00", "Z")
 
-    @field_serializer("source_checked_at", when_used="json")
+    @field_serializer("source_checked_at", "intel_analyzed_at", when_used="json")
     def serialize_optional_timestamp(self, value: datetime | None) -> str | None:
         if value is None:
             return None
@@ -88,7 +92,12 @@ class PublicSnapshot(BaseModel):
         return value.isoformat().replace("+00:00", "Z")
 
 
-def build_public_snapshot(database: Database, generated_at: datetime) -> PublicSnapshot:
+def build_public_snapshot(
+    database: Database,
+    generated_at: datetime,
+    history_days: int = 31,
+) -> PublicSnapshot:
+    history_cutoff = generated_at - timedelta(days=history_days)
     events = [
         PublicEvent(
             event_key=view.event.key,
@@ -118,6 +127,10 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
             prize_summary=view.facts.prize_summary,
             registration_status=view.facts.registration_status,
             categories=view.facts.categories,
+            intel_claims=view.facts.intel_claims,
+            intel_model=view.facts.intel_model,
+            intel_analyzed_at=view.facts.intel_analyzed_at,
+            intel_stale=view.facts.intel_stale,
             source_scan_status=view.facts.source_scan_status,
             source_scan_reason=view.facts.source_scan_reason,
             source_pages_checked=view.facts.source_pages_checked,
@@ -126,9 +139,12 @@ def build_public_snapshot(database: Database, generated_at: datetime) -> PublicS
         )
         for view in database.list_events()
         if (
-            view.facts.ai_policy is not AiPolicy.HUMAN_ONLY
-            or view.facts.analysis_stale
-            or view.facts.ai_policy_conflicting
+            view.event.finishes_at >= history_cutoff
+            and (
+                view.facts.ai_policy is not AiPolicy.HUMAN_ONLY
+                or view.facts.analysis_stale
+                or view.facts.ai_policy_conflicting
+            )
         )
     ]
     summary = PublicScanSummary(

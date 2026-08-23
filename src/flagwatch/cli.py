@@ -53,7 +53,7 @@ def build_sync_service(settings: Settings, *, queue_notifications: bool = True) 
     policy_extractor = None
     if settings.ai_enabled and settings.ai_api_key is not None:
         policy_extractor = LlmPolicyExtractor(
-            client=httpx.Client(timeout=settings.request_timeout_seconds),
+            client=httpx.Client(timeout=settings.ai_timeout_seconds),
             endpoint=str(settings.ai_endpoint),
             api_key=settings.ai_api_key.get_secret_value(),
             model=settings.ai_model,
@@ -63,6 +63,7 @@ def build_sync_service(settings: Settings, *, queue_notifications: bool = True) 
         source=CtftimeSource(source_client, str(settings.ctftime_base_url)),
         fetcher=GuardedFetcher(page_client, max_bytes=settings.max_response_bytes),
         lookahead_days=settings.ctftime_lookahead_days,
+        lookback_days=settings.ctftime_lookback_days,
         policy_extractor=policy_extractor,
         queue_notifications=queue_notifications,
     )
@@ -94,7 +95,7 @@ def sync_command(
         Path | None, typer.Option("--database", help="SQLite database path.")
     ] = None,
 ) -> None:
-    """Import upcoming events and inspect reachable rules."""
+    """Import recent and upcoming events and inspect reachable rules."""
     settings = _settings(database)
     report = build_sync_service(settings).run()
     typer.echo(

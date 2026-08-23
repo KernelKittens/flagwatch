@@ -172,7 +172,8 @@ h1 { margin: 0; font-size: clamp(1.65rem, 3vw, 2.5rem); letter-spacing: -0.035em
 h2 { line-height: 1.15; }
 
 .month-controls { display: flex; gap: 8px; }
-.policy-note { margin: 0; padding: 0 30px 10px; color: var(--muted); }
+.policy-note { margin: 0; padding: 0 30px 6px; color: var(--muted); }
+.history-note { margin: 0; padding: 0 30px 10px; color: var(--muted); font-size: 0.88rem; }
 .status { margin: 0; padding: 0 30px 18px; color: var(--muted); }
 .status:empty { display: none; }
 
@@ -361,6 +362,21 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
 .scan-mark.warn { color: var(--unknown); }
 .alert-decision { padding: 12px 14px; color: #dffbff; border-left: 3px solid var(--allowed); background: var(--accent-soft); }
 .alert-decision.warn { color: #fff2bf; border-left-color: var(--unknown); background: #3a3218; }
+.event-intel { margin-top: 18px; border: 1px solid #315365; background: #06141d; }
+.event-intel-heading { padding: 18px; border-bottom: 1px solid var(--line); }
+.event-intel-heading h3 { margin: 0; font-size: 1.3rem; }
+.event-intel-heading p:not(.eyebrow) { margin: 8px 0; color: var(--muted); line-height: 1.5; }
+.event-intel-heading small { color: #bed3dd; font: 700 0.72rem/1.4 "Cascadia Code", Consolas, monospace; }
+.intel-group { padding: 16px 18px 18px; border-bottom: 1px solid var(--line); }
+.intel-group:last-child { border-bottom: 0; }
+.intel-group h4 { margin: 0 0 10px; color: var(--accent-dark); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.intel-claims { display: grid; gap: 10px; }
+.intel-claim { padding: 14px; border-left: 3px solid var(--accent); background: #0a202c; }
+.intel-claim-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.intel-claim h5 { margin: 0; font-size: 1rem; }
+.intel-claim a { color: var(--accent-dark); font-size: 0.8rem; font-weight: 800; }
+.intel-value { margin: 7px 0 10px; color: var(--ink); font-weight: 750; }
+.intel-claim blockquote { margin: 0; padding: 9px 11px; color: #c4d9e2; border-left: 2px solid #547181; background: #06141d; line-height: 1.45; }
 .detail-grid { margin: 22px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .detail-item { padding: 12px; border: 1px solid var(--line); border-radius: 0; }
 .detail-item dt { color: var(--muted); font-size: 0.75rem; font-weight: 750; text-transform: uppercase; }
@@ -406,6 +422,7 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
   .month-controls { justify-content: space-between; }
   .month-controls button { flex: 1; }
   .policy-note { padding: 0 12px 8px; }
+  .history-note { padding: 0 12px 8px; }
   .status { padding: 0 12px 12px; }
   .weekday { padding: 8px 1px; font-size: 0.63rem; letter-spacing: 0; text-transform: none; }
   .calendar-cell { min-height: 58px; padding: 3px; }
@@ -429,6 +446,7 @@ dialog::backdrop { background: rgba(10, 22, 39, 0.66); }
   .policy-actions { align-items: stretch; flex-direction: column; }
   .policy-source { justify-content: center; }
   .event-links { display: grid; }
+  .intel-claim-heading { align-items: stretch; flex-direction: column; }
   .dialog-actions { display: grid; }
   .scan-summary { grid-template-columns: 1fr 1fr; }
   .scan-refresh { grid-column: 1 / -1; }

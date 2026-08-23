@@ -1,6 +1,6 @@
 # Flagwatch
 
-Flagwatch imports upcoming events from CTFtime, reads reachable official rules, and keeps cited AI-policy evidence beside the useful event facts. Its public surface is a read-only month calendar. The local operator dashboard remains private.
+Flagwatch imports the previous 31 days and next 90 days of events from CTFtime, reads reachable official rules, and keeps cited event intelligence beside the useful event facts. Its public surface is a read-only month calendar. The local operator dashboard remains private.
 
 The public calendar omits events whose confirmed rules ban all AI-assisted challenge work. A ban on autonomous solvers alone is fine. Missing or conflicting rules remain visible as unverified and never trigger an alert. The private operator data keeps every imported event and its evidence for review.
 
@@ -29,15 +29,15 @@ The public calendar lives in `site/`. Its browser timezone prompt defaults to Am
 
 ## Azure deployment
 
-The public deployment uses its own `rg-flagwatch-web-prod` resource group in Central US. Azure Static Web Apps serves the calendar. A Python 3.13 Flex Consumption Function refreshes a private Blob-backed database every six hours and exposes only sanitized event JSON.
+The public deployment uses its own `rg-flagwatch-web-prod` resource group in Central US. Azure Static Web Apps serves the calendar. A Python 3.13 Flex Consumption Function refreshes a private Blob-backed database every six hours and exposes only sanitized event JSON. One 512 MiB HTTP instance stays always ready so ordinary calendar loads do not depend on a cold start.
 
-Run `scripts/deploy-azure.ps1` from an authenticated Azure CLI session. The script validates tests and Bicep before creating resources, seeds the last-good snapshot, sets a $10 monthly budget alert, and returns the site and API URLs. It never changes the existing CTF Discord bot resource group.
+Run `scripts/deploy-azure.ps1` from an authenticated Azure CLI session with `FLAGWATCH_AI_API_KEY` set in that process. The script validates tests and Bicep before creating resources, seeds the last-good snapshot, verifies always-ready capacity, sets a $10 monthly budget alert, and returns the site and API URLs. It never changes the existing CTF Discord bot resource group.
 
-Notifications and model-provider credentials are not deployed. The Azure refresh keeps alert generation and delivery disabled.
+The model credential is stored only in Azure Function configuration and is never committed. The Azure refresh keeps alert generation and delivery disabled.
 
 ## AI-policy analysis
 
-The built-in rule parser handles explicit AI permissions and bans without sending rule text to a model. It reads crawler-visible page content, useful page metadata, same-origin rule links, and bounded same-origin sitemap entries. Optional model fallback runs only when the parser returns `unknown` and the source pages do not conflict.
+The built-in rule parser handles explicit AI permissions and bans without depending on a model. It reads crawler-visible page content, useful page metadata, same-origin rule links, and bounded same-origin sitemap entries. DeepSeek V4 Pro extracts additional public event and rules intelligence. A content fingerprint reuses prior results when the sources have not changed.
 
 Set these environment variables to enable the fallback:
 
@@ -48,7 +48,7 @@ FLAGWATCH_AI_MODEL=<model name>
 FLAGWATCH_AI_API_KEY=<secret>
 ```
 
-A model result is accepted only when its evidence quote appears on a fetched source page. Otherwise the policy stays `unknown` and cannot alert.
+A model result is accepted only when each evidence quote appears on its declared fetched source page. Unsupported claims are discarded. A model classification cannot override conflicting evidence or bypass the stale-source alert gate.
 
 ## Alerts
 

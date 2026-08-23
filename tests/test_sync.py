@@ -127,7 +127,7 @@ def test_participant_count_change_does_not_duplicate_alert(tmp_path):
     assert database.count_outbox() == 1
 
 
-def test_model_fallback_can_classify_unknown_policy_with_source_evidence(tmp_path):
+def test_model_intelligence_cannot_classify_unknown_policy_for_alerting(tmp_path):
     database = Database(tmp_path / "flagwatch.db")
     database.initialize()
     start = datetime(2026, 9, 5, 14, tzinfo=UTC)
@@ -151,10 +151,11 @@ def test_model_fallback_can_classify_unknown_policy_with_source_evidence(tmp_pat
     report = service.run()
     facts = database.list_events()[0].facts
 
-    assert report.queued == 1
-    assert facts.ai_policy is AiPolicy.AI_ASSISTED
-    assert facts.ai_policy_source == "https://ctf.example/"
-    assert facts.ai_policy_evidence == FakePolicyResponse.evidence
+    assert report.queued == 0
+    assert report.unverified_policies == 1
+    assert facts.ai_policy is AiPolicy.UNKNOWN
+    assert facts.ai_policy_source is None
+    assert facts.ai_policy_evidence is None
 
 
 def test_model_fallback_cannot_approve_hallucinated_evidence(tmp_path):

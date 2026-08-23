@@ -5,7 +5,13 @@
     "FUNCTIONS_WORKER_RUNTIME": "python",
     "FLAGWATCH_STORAGE_ACCOUNT_URL": "https://replace-me.blob.core.windows.net",
     "FLAGWATCH_STORAGE_CONTAINER": "flagwatch",
+    "FLAGWATCH_CTFTIME_LOOKBACK_DAYS": "31",
+    "FLAGWATCH_CTFTIME_LOOKAHEAD_DAYS": "90",
     "FLAGWATCH_AI_ENABLED": "false",
+    "FLAGWATCH_AI_ENDPOINT": "https://example.invalid/v1/chat/completions",
+    "FLAGWATCH_AI_MODEL": "DeepSeek-V4-Pro",
+    "FLAGWATCH_AI_API_KEY": "",
+    "FLAGWATCH_AI_TIMEOUT_SECONDS": "60",
     "FLAGWATCH_SEND_ENABLED": "false"
   }
 }

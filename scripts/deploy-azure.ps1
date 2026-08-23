@@ -21,6 +21,9 @@ $siteStage = Join-Path $stage 'site'
 $seedStage = Join-Path $stage 'seed'
 $zip = Join-Path $stage 'function.zip'
 $hostStorageKeyEnabled = $false
+$aiApiKey = $null
+$aiSettings = $null
+$aiSettingsPath = $null
 
 function Invoke-AzJson {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
@@ -61,6 +64,24 @@ function Test-WebNameAvailable {
     }
 }
 
+function Write-PrivateJsonFile {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][object]$Value
+    )
+    [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 10 -Compress))
+    if ($IsWindows) {
+        $identityName = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+        & icacls $Path /inheritance:r /grant:r "${identityName}:(F)" | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Could not restrict the settings file permissions.' }
+    } else {
+        [IO.File]::SetUnixFileMode(
+            $Path,
+            [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite
+        )
+    }
+}
+
 try {
     $account = Invoke-AzJson account show
     if ([string]$account.id -ne $ExpectedSubscriptionId -or [string]$account.state -ne 'Enabled') {
@@ -72,6 +93,11 @@ try {
     if (-not (Test-Path -LiteralPath $SeedDatabasePath -PathType Leaf)) {
         throw "Seed database not found: $SeedDatabasePath"
     }
+    $aiApiKey = [Environment]::GetEnvironmentVariable('FLAGWATCH_AI_API_KEY', 'Process')
+    if (-not $aiApiKey) {
+        throw 'FLAGWATCH_AI_API_KEY must be set in the current process for production deployment.'
+    }
+    New-Item -ItemType Directory -Path $stage -Force | Out-Null
 
     & uv run pytest -q
     if ($LASTEXITCODE -ne 0) { throw 'Tests failed before deployment.' }
@@ -159,6 +185,17 @@ try {
         }
     }
 
+    & az functionapp scale config always-ready set --resource-group $ResourceGroup `
+        --name $functionName --settings http=1 --output none
+    if ($LASTEXITCODE -ne 0) { throw 'Function always-ready capacity setup failed.' }
+    $functionResource = Invoke-AzJson resource show --resource-group $ResourceGroup `
+        --name $functionName --resource-type 'Microsoft.Web/sites' --api-version 2024-04-01
+    $httpAlwaysReady = @(
+        $functionResource.properties.functionAppConfig.scaleAndConcurrency.alwaysReady |
+            Where-Object { [string]$_.name -eq 'http' -and [int]$_.instanceCount -eq 1 }
+    )
+    if ($httpAlwaysReady.Count -ne 1) { throw 'Function always-ready verification failed.' }
+
     $identity = Invoke-AzJson functionapp identity assign --resource-group $ResourceGroup --name $functionName
     $principalId = [string]$identity.principalId
     & az role assignment create --assignee-object-id $principalId --assignee-principal-type ServicePrincipal `
@@ -177,12 +214,6 @@ try {
         }
     }
     Start-Sleep -Seconds 10
-
-    & az functionapp config appsettings set --resource-group $ResourceGroup --name $functionName --settings `
-        "FLAGWATCH_STORAGE_ACCOUNT_URL=https://$storageName.blob.core.windows.net" `
-        'FLAGWATCH_STORAGE_CONTAINER=flagwatch' 'FLAGWATCH_AI_ENABLED=false' `
-        'FLAGWATCH_SEND_ENABLED=false' 'FLAGWATCH_CTFTIME_LOOKAHEAD_DAYS=90' --output none
-    if ($LASTEXITCODE -ne 0) { throw 'Function settings failed.' }
 
     & az functionapp config appsettings set --resource-group $ResourceGroup --name $functionName --settings `
         "AzureWebJobsStorage__accountName=$hostStorageName" `
@@ -207,7 +238,7 @@ try {
             --deployment-storage-auth-type SystemAssignedIdentity --output none
     }
 
-    New-Item -ItemType Directory -Path $stage, $bundle, $siteStage, $seedStage -Force | Out-Null
+    New-Item -ItemType Directory -Path $bundle, $siteStage, $seedStage -Force | Out-Null
     & uv run python -m flagwatch.function_bundle $repo $bundle
     if ($LASTEXITCODE -ne 0) { throw 'Function bundle failed.' }
     $pythonPackages = Join-Path $bundle '.python_packages\lib\site-packages'
@@ -219,6 +250,28 @@ try {
         & az functionapp deployment source config-zip --resource-group $ResourceGroup `
             --name $functionName --src $zip --build-remote false --timeout 300 --output none
     }
+
+    $aiSettingsPath = Join-Path $stage 'function-app-settings.json'
+    $aiSettings = [ordered]@{
+        FLAGWATCH_STORAGE_ACCOUNT_URL = "https://$storageName.blob.core.windows.net"
+        FLAGWATCH_STORAGE_CONTAINER = 'flagwatch'
+        FLAGWATCH_AI_ENABLED = 'true'
+        FLAGWATCH_AI_MODEL = 'DeepSeek-V4-Pro'
+        FLAGWATCH_AI_ENDPOINT = 'https://kitsunetechnologies.services.ai.azure.com/openai/v1/chat/completions'
+        FLAGWATCH_AI_API_KEY = $aiApiKey
+        FLAGWATCH_AI_TIMEOUT_SECONDS = '60'
+        FLAGWATCH_SEND_ENABLED = 'false'
+        FLAGWATCH_CTFTIME_LOOKBACK_DAYS = '31'
+        FLAGWATCH_CTFTIME_LOOKAHEAD_DAYS = '90'
+    }
+    Write-PrivateJsonFile -Path $aiSettingsPath -Value $aiSettings
+    & az functionapp config appsettings set --resource-group $ResourceGroup --name $functionName `
+        --settings "@$aiSettingsPath" --output none
+    if ($LASTEXITCODE -ne 0) { throw 'Function settings failed.' }
+    Remove-Item -LiteralPath $aiSettingsPath -Force
+    $aiSettingsPath = $null
+    $aiSettings = $null
+    $aiApiKey = $null
 
     & uv run python -m flagwatch.seed_bundle $SeedDatabasePath $seedStage
     if ($LASTEXITCODE -ne 0) { throw 'Seed bundle failed.' }
@@ -255,8 +308,11 @@ try {
     Remove-Item Env:SWA_CLI_DEPLOYMENT_TOKEN -ErrorAction SilentlyContinue
     if ($LASTEXITCODE -ne 0) { throw 'Static site deployment failed.' }
 
-    $brandedOrigin = 'https://calendar.kitsunetechnologies.org'
-    $requiredCorsOrigins = @("https://$swaHostname", $brandedOrigin)
+    $brandedOrigins = @(
+        'https://calendar.kitsunetechnologies.org',
+        'https://calendar.kernelkittens.team'
+    )
+    $requiredCorsOrigins = @("https://$swaHostname") + $brandedOrigins
     $cors = Invoke-AzJson functionapp cors show --resource-group $ResourceGroup --name $functionName
     foreach ($origin in @($cors.allowedOrigins | Where-Object { $_ -notin $requiredCorsOrigins })) {
         & az functionapp cors remove --resource-group $ResourceGroup --name $functionName `
@@ -307,6 +363,11 @@ try {
     } | ConvertTo-Json
 }
 finally {
+    $aiApiKey = $null
+    $aiSettings = $null
+    if ($aiSettingsPath -and (Test-Path -LiteralPath $aiSettingsPath)) {
+        Remove-Item -LiteralPath $aiSettingsPath -Force
+    }
     Remove-Item Env:SWA_CLI_DEPLOYMENT_TOKEN -ErrorAction SilentlyContinue
     if ($hostStorageKeyEnabled) {
         & az storage account update --resource-group $ResourceGroup --name $hostStorageName `

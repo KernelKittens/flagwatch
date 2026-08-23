@@ -1,7 +1,7 @@
 {
   "generated_at": "2026-08-14T18:00:00Z",
   "scan_summary": {
-    "sources_read": 2,
+    "sources_read": 3,
     "sources_need_recheck": 2,
     "policies_confirmed": 1
   },
@@ -36,7 +36,26 @@
       "source_scan_reason": "Official site and 1 rule page read",
       "source_pages_checked": 2,
       "source_rule_pages_found": 1,
-      "source_checked_at": "2026-08-14T17:55:00Z"
+      "source_checked_at": "2026-08-14T17:55:00Z",
+      "intel_claims": [
+        {
+          "topic": "eligibility",
+          "label": "Eligible divisions",
+          "value": "Open and student divisions",
+          "source_url": "https://example.com/signal/rules",
+          "evidence": "Open and student divisions may compete."
+        },
+        {
+          "topic": "flag_sharing",
+          "label": "Flag sharing",
+          "value": "Prohibited between teams",
+          "source_url": "https://example.com/signal/rules",
+          "evidence": "Teams may not share flags or solutions with another team."
+        }
+      ],
+      "intel_model": "DeepSeek-V4-Pro",
+      "intel_analyzed_at": "2026-08-14T17:55:00Z",
+      "intel_stale": false
     },
     {
       "event_key": "ctftime:unknown-policy",
@@ -133,6 +152,42 @@
       "source_pages_checked": 2,
       "source_rule_pages_found": 1,
       "source_checked_at": "2026-08-14T17:52:00Z"
+    },
+    {
+      "event_key": "ctftime:past-month",
+      "title": "Archive Trail CTF",
+      "official_url": "https://example.com/archive-trail",
+      "ctftime_url": "https://ctftime.org/event/2599",
+      "starts_at": "2026-07-30T15:00:00Z",
+      "finishes_at": "2026-08-01T03:00:00Z",
+      "online": true,
+      "onsite": false,
+      "format": "Jeopardy",
+      "weight": "18.00",
+      "organizers": ["Archive Team"],
+      "participants": 96,
+      "ai_policy": "unknown",
+      "ai_policy_reason": "No published AI rule was found.",
+      "ai_policy_source": null,
+      "ai_policy_evidence": null,
+      "ai_policy_confidence": 0.0,
+      "ai_policy_conflicting": false,
+      "analysis_stale": false,
+      "team_max": 4,
+      "divisions": ["Open"],
+      "schedule_mode": "fixed",
+      "prize_summary": "Bragging rights",
+      "registration_status": "Closed",
+      "categories": ["web", "forensics"],
+      "intel_claims": [],
+      "intel_model": null,
+      "intel_analyzed_at": null,
+      "intel_stale": false,
+      "source_scan_status": "read",
+      "source_scan_reason": "Official site read; no dedicated rules page found",
+      "source_pages_checked": 1,
+      "source_rule_pages_found": 0,
+      "source_checked_at": "2026-08-14T17:51:00Z"
     }
   ]
 }

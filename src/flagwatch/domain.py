@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, HttpUrl, model_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
 
 class AiPolicy(StrEnum):
@@ -27,6 +27,30 @@ class SourceScanStatus(StrEnum):
     LIMITED = "limited"
     FAILED = "failed"
     NOT_CHECKED = "not_checked"
+
+
+class IntelTopic(StrEnum):
+    OVERVIEW = "overview"
+    ELIGIBILITY = "eligibility"
+    REGISTRATION = "registration"
+    FORMAT = "format"
+    SCHEDULE = "schedule"
+    PRIZES = "prizes"
+    CONDUCT = "conduct"
+    FLAG_SHARING = "flag_sharing"
+    PLATFORM = "platform"
+    AI_POLICY = "ai_policy"
+    OTHER = "other"
+
+
+class IntelClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    topic: IntelTopic
+    label: str = Field(min_length=1, max_length=80)
+    value: str = Field(min_length=1, max_length=320)
+    source_url: HttpUrl
+    evidence: str = Field(min_length=1, max_length=500)
 
 
 class Event(BaseModel):
@@ -71,6 +95,14 @@ class EventFacts(BaseModel):
     prize_summary: str | None = None
     registration_status: str | None = None
     categories: list[str] = Field(default_factory=list)
+    intel_claims: list[IntelClaim] = Field(default_factory=list, max_length=24)
+    intel_source_fingerprint: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    intel_model: str | None = None
+    intel_analyzed_at: datetime | None = None
+    intel_stale: bool = False
     analyzed_at: datetime | None = None
     analysis_stale: bool = False
     analysis_error: str | None = None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -35,8 +36,8 @@ def test_month_grid_navigation_multiday_and_crowded_dates(
     assert headings.all_text_contents() == ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     expect(page.get_by_role("grid", name="Month calendar")).to_be_visible()
     scan_summary = page.get_by_role("region", name="Latest source scan")
-    expect(scan_summary.get_by_text("4 CTFs", exact=True)).to_be_visible()
-    expect(scan_summary.get_by_text("2 sources", exact=True)).to_be_visible()
+    expect(scan_summary.get_by_text("5 CTFs", exact=True)).to_be_visible()
+    expect(scan_summary.get_by_text("3 sources", exact=True)).to_be_visible()
     expect(scan_summary.get_by_text("2 need recheck", exact=True)).to_be_visible()
     expect(scan_summary.get_by_text("1 confirmed", exact=True)).to_be_visible()
     assert page.get_by_role("columnheader").count() == 7
@@ -115,6 +116,15 @@ def test_direct_event_link_exposes_all_details_and_closes(
         scan_ledger.get_by_text("Official site and 1 rule page read", exact=True)
     ).to_be_visible()
     expect(scan_ledger.get_by_text("Verified, alerts allowed", exact=True)).to_be_visible()
+    intelligence = dialog.get_by_role("region", name="Event intelligence")
+    expect(intelligence.get_by_text("Eligible divisions", exact=True)).to_be_visible()
+    expect(intelligence.get_by_text("Open and student divisions", exact=True)).to_be_visible()
+    expect(
+        intelligence.get_by_text("Open and student divisions may compete.", exact=True)
+    ).to_be_visible()
+    expect(
+        intelligence.get_by_role("link", name="Source for Eligible divisions")
+    ).to_have_attribute("href", "https://example.com/signal/rules")
 
     ARTIFACTS.mkdir(exist_ok=True)
     page.screenshot(path=ARTIFACTS / "flagwatch-ai-rules-dialog.png", full_page=True)
@@ -220,11 +230,45 @@ def test_invalid_detection_falls_back_to_america_chicago(
 
 
 def test_invalid_saved_timezone_falls_back_safely(page: Page, static_site_server: str) -> None:
-    page.add_init_script("localStorage.setItem('flagwatch.timeZone', 'Not/AZone')")
+    page.add_init_script(
+        """
+        localStorage.setItem('flagwatch.timeZone', 'Not/AZone');
+        Intl.DateTimeFormat.prototype.resolvedOptions = () => ({timeZone: 'America/Chicago'});
+        """
+    )
     page.goto(f"{static_site_server}/?month=2026-08")
 
     dialog = page.get_by_role("dialog", name="Confirm timezone")
     expect(dialog.get_by_text("America/Chicago", exact=True)).to_be_visible()
+
+
+def test_past_month_event_is_visible_and_marked_finished(
+    page: Page, static_site_server: str
+) -> None:
+    page.add_init_script(SAVED_ZONE_SCRIPT)
+    page.goto(f"{static_site_server}/?month=2026-07&event=ctftime%3Apast-month")
+
+    dialog = page.get_by_role("dialog", name="Archive Trail CTF")
+    expect(dialog).to_be_visible()
+    expect(dialog.get_by_text("Finished", exact=True)).to_be_visible()
+    expect(dialog.get_by_text("Jul 30, 2026", exact=False)).to_be_visible()
+
+
+def test_saved_snapshot_is_used_when_live_feed_fails(page: Page, static_site_server: str) -> None:
+    payload = (Path(__file__).parents[1] / "fixtures" / "public_snapshot.json").read_text(
+        encoding="utf-8"
+    )
+    cached = json.dumps({"saved_at": "2026-08-14T18:01:00Z", "payload": json.loads(payload)})
+    page.add_init_script(
+        f"localStorage.setItem('flagwatch.timeZone', 'America/Chicago');"
+        f"localStorage.setItem('flagwatch.snapshot.v1', {json.dumps(cached)});"
+    )
+    page.route("**/api/events", lambda route: route.abort())
+
+    page.goto(f"{static_site_server}/?month=2026-08")
+
+    expect(page.get_by_role("status")).to_contain_text("Showing saved calendar data from")
+    expect(page.get_by_text("Midwest Signal CTF", exact=True).first).to_be_visible()
     expect(page.get_by_role("heading", name="August 2026")).to_be_visible()
 
 

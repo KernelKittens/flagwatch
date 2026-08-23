@@ -70,3 +70,4 @@ def test_optional_extractor_uses_strict_structured_response():
     assert requests[0].headers["api-key"] == "secret"
     request_payload = json.loads(requests[0].content)
     assert request_payload["response_format"]["type"] == "json_schema"
+    assert "temperature" not in request_payload
