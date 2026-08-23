@@ -362,6 +362,12 @@ def test_browser_back_restores_previous_month_and_closes_event(
 def test_public_calendar_has_no_axe_violations(page: Page, static_site_server: str) -> None:
     _open_august(page, static_site_server)
 
+    skip_link = page.get_by_role("link", name="Skip to calendar")
+    page.keyboard.press("Tab")
+    expect(skip_link).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("#calendar")).to_be_focused()
+
     results = Axe().run(page)
 
     assert results.violations_count == 0, results.generate_report()
