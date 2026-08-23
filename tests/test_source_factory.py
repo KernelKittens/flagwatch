@@ -23,6 +23,13 @@ SOURCE_DOCUMENT = {
             "url": "https://events.example/events.json",
         },
         {
+            "kind": "watch",
+            "name": "organizer-watch",
+            "url": "https://events.example/calendar",
+            "organizers": ["Example Org"],
+            "max_event_pages": 4,
+        },
+        {
             "kind": "ctfd",
             "name": "kitten-platform",
             "base_url": "https://ctf.example/",
@@ -62,8 +69,14 @@ def public_resolver(_host: str) -> list[str]:
 def test_loads_all_documented_source_definitions() -> None:
     definitions = load_source_definitions(json.dumps(SOURCE_DOCUMENT), None)
 
-    assert [definition.kind for definition in definitions] == ["ics", "json", "ctfd", "rctf"]
-    assert definitions[2].event.starts_at == datetime(2026, 8, 29, 12, tzinfo=UTC)
+    assert [definition.kind for definition in definitions] == [
+        "ics",
+        "json",
+        "watch",
+        "ctfd",
+        "rctf",
+    ]
+    assert definitions[3].event.starts_at == datetime(2026, 8, 29, 12, tzinfo=UTC)
 
 
 def test_source_config_rejects_inline_tokens() -> None:
@@ -74,7 +87,7 @@ def test_source_config_rejects_inline_tokens() -> None:
                 "name": "bad",
                 "base_url": "https://ctf.example/",
                 "token": "must-not-be-here",
-                "event": SOURCE_DOCUMENT["sources"][2]["event"],
+                "event": SOURCE_DOCUMENT["sources"][3]["event"],
             }
         ]
     }
@@ -131,9 +144,11 @@ def test_factory_builds_composite_and_resolves_token_by_environment_name() -> No
     assert [item.source_name for item in source.sources] == [
         "community-calendar",
         "organizer-json",
+        "organizer-watch",
         "kitten-platform",
         "other-platform",
     ]
+    assert [item.precedence for item in source.sources] == [40, 45, 10, 20, 20]
 
     batch = source.fetch_events(
         datetime(2026, 8, 1, tzinfo=UTC),
@@ -144,8 +159,7 @@ def test_factory_builds_composite_and_resolves_token_by_environment_name() -> No
     ctfd_requests = [request for request in requests if request.url.host == "ctf.example"]
     assert ctfd_requests
     assert all(
-        request.headers["authorization"] == "Token env-only-secret"
-        for request in ctfd_requests
+        request.headers["authorization"] == "Token env-only-secret" for request in ctfd_requests
     )
 
 
@@ -159,4 +173,5 @@ def test_factory_keeps_ctftime_optional_and_backward_compatible() -> None:
     disabled = build_event_source(Settings(ctftime_enabled=False), client, fetcher)
 
     assert [source.source_name for source in enabled.sources] == ["ctftime"]
+    assert [source.precedence for source in enabled.sources] == [100]
     assert disabled.sources == []

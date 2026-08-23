@@ -10,6 +10,7 @@ from typing import Annotated, Literal
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, TypeAdapter, field_validator
 
+from flagwatch.analysis.discovery import WatchPageDiscoveryExtractor
 from flagwatch.config import Settings
 from flagwatch.domain import Event
 from flagwatch.fetching import GuardedFetcher, Resolver, resolve_public_addresses
@@ -18,6 +19,7 @@ from flagwatch.sources.ctfd import CtfdSource
 from flagwatch.sources.ctftime import CtftimeSource
 from flagwatch.sources.feeds import IcsFeedSource, JsonFeedSource
 from flagwatch.sources.rctf import RctfSource
+from flagwatch.sources.watch_page import WatchPageSource
 
 
 class SourceDefinitionBase(BaseModel):
@@ -35,6 +37,14 @@ class IcsSourceDefinition(SourceDefinitionBase):
 class JsonSourceDefinition(SourceDefinitionBase):
     kind: Literal["json"]
     url: HttpUrl
+
+
+class WatchSourceDefinition(SourceDefinitionBase):
+    kind: Literal["watch"]
+    url: HttpUrl
+    organizers: list[str] = Field(default_factory=list, max_length=32)
+    max_event_pages: int = Field(default=12, ge=0, le=24)
+    ai_discovery: bool = True
 
 
 class PlatformEventDefinition(BaseModel):
@@ -85,7 +95,11 @@ class RctfSourceDefinition(SourceDefinitionBase):
 
 
 SourceDefinition = Annotated[
-    IcsSourceDefinition | JsonSourceDefinition | CtfdSourceDefinition | RctfSourceDefinition,
+    IcsSourceDefinition
+    | JsonSourceDefinition
+    | WatchSourceDefinition
+    | CtfdSourceDefinition
+    | RctfSourceDefinition,
     Field(discriminator="kind"),
 ]
 SOURCE_DEFINITIONS = TypeAdapter(list[SourceDefinition])
@@ -137,6 +151,7 @@ def build_event_source(
     *,
     environ: Mapping[str, str] = os.environ,
     resolver: Resolver = resolve_public_addresses,
+    discovery_extractor: WatchPageDiscoveryExtractor | None = None,
 ) -> CompositeSource:
     sources: list[RankedEventSource] = []
     if settings.ctftime_enabled:
@@ -149,6 +164,17 @@ def build_event_source(
             sources.append(IcsFeedSource(str(definition.url), fetcher, definition.name))
         elif isinstance(definition, JsonSourceDefinition):
             sources.append(JsonFeedSource(str(definition.url), fetcher, definition.name))
+        elif isinstance(definition, WatchSourceDefinition):
+            sources.append(
+                WatchPageSource(
+                    str(definition.url),
+                    fetcher,
+                    definition.name,
+                    definition.organizers,
+                    definition.max_event_pages,
+                    discovery_extractor if definition.ai_discovery else None,
+                )
+            )
         elif isinstance(definition, CtfdSourceDefinition):
             sources.append(
                 CtfdSource(

@@ -8,6 +8,7 @@ import httpx
 import typer
 import uvicorn
 
+from flagwatch.analysis.discovery import WatchPageDiscoveryExtractor
 from flagwatch.analysis.llm import LlmPolicyExtractor
 from flagwatch.analysis.providers import build_model_connector
 from flagwatch.config import Settings
@@ -52,6 +53,7 @@ def build_sync_service(settings: Settings, *, queue_notifications: bool = True) 
     source_client = httpx.Client(timeout=settings.request_timeout_seconds)
     page_client = httpx.Client(timeout=settings.request_timeout_seconds)
     policy_extractor = None
+    discovery_extractor = None
     if settings.ai_enabled:
         model_client = httpx.Client(timeout=settings.ai_timeout_seconds)
         connector = build_model_connector(
@@ -59,17 +61,21 @@ def build_sync_service(settings: Settings, *, queue_notifications: bool = True) 
             client=model_client,
             endpoint=str(settings.ai_endpoint),
             api_key=(
-                settings.ai_api_key.get_secret_value()
-                if settings.ai_api_key is not None
-                else None
+                settings.ai_api_key.get_secret_value() if settings.ai_api_key is not None else None
             ),
             model=settings.ai_model,
         )
         policy_extractor = LlmPolicyExtractor(connector=connector)
+        discovery_extractor = WatchPageDiscoveryExtractor(connector)
     fetcher = GuardedFetcher(page_client, max_bytes=settings.max_response_bytes)
     return SyncService(
         database=database,
-        source=build_event_source(settings, source_client, fetcher),
+        source=build_event_source(
+            settings,
+            source_client,
+            fetcher,
+            discovery_extractor=discovery_extractor,
+        ),
         fetcher=fetcher,
         lookahead_days=settings.ctftime_lookahead_days,
         lookback_days=settings.ctftime_lookback_days,

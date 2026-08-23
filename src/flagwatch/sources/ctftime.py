@@ -119,7 +119,7 @@ def normalize_ctftime_event(
 
 class CtftimeSource:
     source_name = "ctftime"
-    precedence = 20
+    precedence = 100
 
     def __init__(
         self,

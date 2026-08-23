@@ -64,7 +64,7 @@ def _ical_organizers(component: Any) -> list[str]:
 
 
 class IcsFeedSource:
-    precedence = 70
+    precedence = 40
 
     def __init__(
         self,
@@ -144,7 +144,7 @@ class IcsFeedSource:
 
 
 class JsonFeedSource:
-    precedence = 65
+    precedence = 45
 
     def __init__(
         self,

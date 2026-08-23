@@ -23,7 +23,7 @@ def _rctf_data(payload: Any) -> object:
 
 class RctfSource:
     source_name = "rctf"
-    precedence = 85
+    precedence = 20
 
     def __init__(
         self,

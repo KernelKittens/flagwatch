@@ -24,7 +24,7 @@ def _ctfd_data(payload: Any) -> list[object]:
 
 class CtfdSource:
     source_name = "ctfd"
-    precedence = 85
+    precedence = 20
 
     def __init__(
         self,
