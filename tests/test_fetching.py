@@ -93,3 +93,28 @@ def test_accepts_javascript_as_inert_text(media_type):
     page = fetcher.get_page("https://ctf.example/assets/app.js")
 
     assert page.text == source.decode()
+
+
+@pytest.mark.parametrize(
+    "media_type",
+    ["application/json", "application/activity+json", "text/calendar", "application/ics"],
+)
+def test_accepts_feed_content_as_inert_text(media_type):
+    source = b'{"events":[]}' if "json" in media_type else b"BEGIN:VCALENDAR\r\nEND:VCALENDAR"
+    fetcher = GuardedFetcher(
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _request: httpx.Response(
+                    200,
+                    headers={"content-type": media_type},
+                    content=source,
+                )
+            )
+        ),
+        resolver=lambda _host: ["93.184.216.34"],
+    )
+
+    page = fetcher.get_page("https://events.example/feed")
+
+    assert page.text == source.decode()
+    assert page.html is None
