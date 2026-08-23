@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import tempfile
+from datetime import UTC, datetime
 from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated
@@ -19,6 +22,7 @@ from flagwatch.notifications import (
     SmtpSender,
     deliver_pending,
 )
+from flagwatch.public_snapshot import build_public_snapshot
 from flagwatch.sources.factory import build_event_source
 from flagwatch.storage import Database
 from flagwatch.sync import SyncService
@@ -32,6 +36,7 @@ def _settings(database: Path | None) -> Settings:
 
 
 def _database(settings: Settings) -> Database:
+    settings.database_path.parent.mkdir(parents=True, exist_ok=True)
     database = Database(settings.database_path)
     database.initialize()
     return database
@@ -120,6 +125,46 @@ def sync_command(
     )
     if report.failures:
         typer.echo(f"Kept going after {len(report.failures)} source fetch failures.")
+
+
+@app.command()
+def refresh(
+    output: Annotated[
+        Path,
+        typer.Option("--output", help="Public snapshot destination."),
+    ] = Path("data/public/events.json"),
+    database: Annotated[
+        Path | None, typer.Option("--database", help="SQLite database path.")
+    ] = None,
+) -> None:
+    """Sync sources and atomically publish a last-good public snapshot."""
+    settings = _settings(database)
+    report = build_sync_service(settings, queue_notifications=False).run()
+    if report.failures and report.imported == 0:
+        typer.echo(
+            "No source produced an event. The previous public snapshot was kept.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    snapshot = build_public_snapshot(_database(settings), datetime.now(UTC))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, candidate_name = tempfile.mkstemp(
+        prefix=f".{output.name}.",
+        suffix=".tmp",
+        dir=output.parent,
+    )
+    candidate = Path(candidate_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(snapshot.model_dump_json())
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(candidate, output)
+    finally:
+        candidate.unlink(missing_ok=True)
+    typer.echo(f"Published {len(snapshot.events)} events to {output}.")
 
 
 @app.command()

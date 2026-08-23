@@ -1,0 +1,55 @@
+{
+  "sources": [
+    {
+      "kind": "watch",
+      "name": "hack-the-box-events",
+      "url": "https://www.hackthebox.com/events?hsLang=en",
+      "organizers": ["Hack The Box"],
+      "max_event_pages": 12,
+      "ai_discovery": true
+    },
+    {
+      "kind": "ics",
+      "name": "official-calendar",
+      "url": "https://events.example/calendar.ics",
+      "enabled": false
+    },
+    {
+      "kind": "json",
+      "name": "official-json",
+      "url": "https://events.example/events.json",
+      "enabled": false
+    },
+    {
+      "kind": "ctfd",
+      "name": "public-ctfd",
+      "base_url": "https://ctf.example/",
+      "token_env": "FLAGWATCH_CTFD_READ_TOKEN",
+      "enabled": false,
+      "event": {
+        "id": "example-ctf-2026",
+        "title": "Example CTF 2026",
+        "official_url": "https://ctf.example/",
+        "starts_at": "2026-09-05T12:00:00Z",
+        "finishes_at": "2026-09-06T12:00:00Z",
+        "online": true,
+        "organizers": ["Example Org"]
+      }
+    },
+    {
+      "kind": "rctf",
+      "name": "public-rctf",
+      "base_url": "https://rctf.example/",
+      "enabled": false,
+      "event": {
+        "id": "example-rctf-2026",
+        "title": "Example rCTF 2026",
+        "official_url": "https://rctf.example/",
+        "starts_at": "2026-09-12T12:00:00Z",
+        "finishes_at": "2026-09-13T12:00:00Z",
+        "online": true,
+        "organizers": ["Example Org"]
+      }
+    }
+  ]
+}

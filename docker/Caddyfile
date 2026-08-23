@@ -1,0 +1,30 @@
+:8080 {
+    encode zstd gzip
+
+    header {
+        -Server
+        Content-Security-Policy "default-src 'self'; connect-src 'self' https:; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
+        Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+    }
+
+    handle /healthz {
+        respond "ok" 200
+    }
+
+    handle /api/events {
+        root * /srv/data
+        rewrite * /events.json
+        header Cache-Control "public, max-age=60, stale-if-error=86400"
+        header Content-Type "application/json; charset=utf-8"
+        file_server
+    }
+
+    handle {
+        root * /srv/site
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+}

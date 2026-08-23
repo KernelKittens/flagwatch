@@ -1,0 +1,70 @@
+name: flagwatch
+
+services:
+  web:
+    build:
+      context: .
+      target: web
+    ports:
+      - "${FLAGWATCH_PORT:-8080}:8080"
+    volumes:
+      - flagwatch_public:/srv/data:ro
+      - ./site/config.js:/srv/site/config.js:ro
+    read_only: true
+    tmpfs:
+      - /config:size=8m,mode=0700,uid=1000,gid=1000
+      - /data:size=8m,mode=0700,uid=1000,gid=1000
+      - /tmp:size=8m,mode=1777
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      sync:
+        condition: service_started
+
+  sync:
+    build:
+      context: .
+      target: sync
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      FLAGWATCH_DATABASE_PATH: /data/state/flagwatch.db
+      FLAGWATCH_SOURCES_PATH: /run/config/sources.json
+      FLAGWATCH_SYNC_INTERVAL_SECONDS: ${FLAGWATCH_SYNC_INTERVAL_SECONDS:-21600}
+    volumes:
+      - flagwatch_state:/data/state
+      - flagwatch_public:/data/public
+      - ./sources.json:/run/config/sources.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  litellm:
+    profiles: ["litellm"]
+    image: ghcr.io/berriai/litellm:v1.94.0
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      FLAGWATCH_LITELLM_UPSTREAM_MODEL: ${FLAGWATCH_LITELLM_UPSTREAM_MODEL:-}
+      FLAGWATCH_LITELLM_UPSTREAM_URL: ${FLAGWATCH_LITELLM_UPSTREAM_URL:-}
+      FLAGWATCH_LITELLM_UPSTREAM_KEY: ${FLAGWATCH_LITELLM_UPSTREAM_KEY:-}
+    volumes:
+      - ./docker/litellm.example.yaml:/app/config.yaml:ro
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  flagwatch_public:
+  flagwatch_state:

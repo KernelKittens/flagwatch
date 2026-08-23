@@ -9,3 +9,6 @@ def test_delivery_is_disabled_by_default(tmp_path, monkeypatch):
     assert settings.send_enabled is False
     assert settings.database_path == tmp_path / "data" / "flagwatch.db"
     assert settings.ctftime_lookahead_days == 90
+    assert settings.ctftime_enabled is False
+    assert settings.ai_enabled is False
+    assert settings.ai_provider == "openai"

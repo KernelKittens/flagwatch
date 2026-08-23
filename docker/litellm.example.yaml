@@ -1,0 +1,9 @@
+model_list:
+  - model_name: flagwatch-model
+    litellm_params:
+      model: os.environ/FLAGWATCH_LITELLM_UPSTREAM_MODEL
+      api_base: os.environ/FLAGWATCH_LITELLM_UPSTREAM_URL
+      api_key: os.environ/FLAGWATCH_LITELLM_UPSTREAM_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
