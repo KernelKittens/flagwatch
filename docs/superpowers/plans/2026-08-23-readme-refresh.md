@@ -88,5 +88,5 @@
 2. Enable GitHub private vulnerability reporting before publishing its README link.
 3. Confirm the pull request is mergeable and review the rendered diff.
 4. Merge without rewriting unrelated history.
-5. Fetch the final README, banner, screenshot, live calendar, health endpoint, and private reporting setting from their public URLs.
+5. Fetch the final README, banner, screenshot, live calendar, configured production API, and private reporting setting from their public URLs.
 6. If publication fails, leave `main` unchanged and retain the branch for diagnosis.
