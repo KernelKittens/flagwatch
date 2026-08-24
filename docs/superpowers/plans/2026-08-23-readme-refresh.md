@@ -50,7 +50,7 @@
 **Steps:**
 
 1. Copy the sanitized banner without re-encoding it.
-2. Add the banner, plain product statement, evidence-backed badges, live demo, and existing screenshot.
+2. Add the banner, plain product statement, evidence-backed badges, live demo, and a current public month-calendar screenshot.
 3. Add the capability table and collection flow.
 4. Add exact Docker quick-start commands.
 5. Add connector precedence, collection limits, model replacement, and LiteLLM details.

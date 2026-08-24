@@ -7,7 +7,7 @@ Status: Approved
 
 The Flagwatch repository gets a useful public front door for operators, contributors, and CTF teams. The README should explain the product quickly, prove its source-trust model, make Docker setup easy, and show that the model provider is replaceable.
 
-The sanitized Kernel Kittens open-source banner appears at the top. The existing dashboard screenshot stays close to the live demo link so readers see the product before the setup details.
+The sanitized Kernel Kittens open-source banner appears at the top. A current public month-calendar screenshot stays close to the live demo link so readers see the product before the setup details.
 
 ## Public boundary
 
@@ -23,7 +23,7 @@ The first screen contains:
 2. The Flagwatch name and a plain one-sentence description.
 3. Modest badges for the MIT license, Python requirement, Docker Compose, and the verified live calendar.
 4. A direct live-demo link.
-5. The existing desktop dashboard screenshot with useful alternative text.
+5. A current public month-calendar screenshot with useful alternative text.
 
 There is no CI badge because the repository does not currently have a public workflow that can support the claim.
 
@@ -68,7 +68,7 @@ GitHub private vulnerability reporting must be enabled before the README links t
 ## Acceptance criteria
 
 - The banner renders from a repository-owned relative path.
-- The live calendar and screenshot appear above setup details.
+- The live calendar and current public month-calendar screenshot appear above setup details.
 - Docker quick start matches the checked deployment guide.
 - Connector and model claims match the checked docs and configuration.
 - Public and private data boundaries are explicit.

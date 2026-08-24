@@ -19,7 +19,7 @@ CTF details are scattered across calendars, platform pages, rule documents, and 
 
 **[Open the live Kernel Kittens calendar](https://calendar.kernelkittens.team/)**
 
-![Flagwatch desktop calendar showing event cards, filters, and source details](artifacts/flagwatch-dashboard-1440.png)
+![Flagwatch public August 2026 month calendar with CTF events and source status](artifacts/flagwatch-public-calendar-1440.png)
 
 ## What Flagwatch does
 
@@ -54,7 +54,7 @@ Every displayed fact keeps its source reference. A model-derived rule is accepte
 
 ## Quick start with Docker
 
-Requirements: Git and Docker with the Compose plugin.
+Requirements: Docker with the Compose plugin, plus Git and curl.
 
 ```sh
 git clone https://github.com/KernelKittens/flagwatch.git
