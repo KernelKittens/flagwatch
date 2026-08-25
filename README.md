@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/branding/kernel-kittens-github-1280x400.png" alt="Kernel Kittens. KernelKittens.team. Issues and PRs welcome." width="1280">
+  <img src="assets/branding/kernel-kittens-github-1280x400.png" alt="Kernel Kittens banner." width="1280">
 </p>
 
 # Flagwatch
@@ -57,8 +57,8 @@ Every displayed fact keeps its source reference. A model-derived rule is accepte
 Requirements: Docker with the Compose plugin, plus Git and curl.
 
 ```sh
-git clone https://github.com/KernelKittens/flagwatch.git
-cd flagwatch
+git clone https://github.com/KernelKittens/ctf-event-watch.git
+cd ctf-event-watch
 cp .env.example .env
 docker compose up -d --build
 curl --fail http://127.0.0.1:8080/healthz
@@ -77,16 +77,7 @@ Both run as non-root users with read-only filesystems, dropped Linux capabilitie
 
 ## Connectors and precedence
 
-Lower numbers win when two sources disagree.
-
-| Connector | Default precedence | Intended use |
-| --- | ---: | --- |
-| Official page watch | 10 | Organizer calendars, event pages, and rules |
-| CTFd | 20 | Public event facts and aggregate platform data |
-| rCTF | 20 | Public event facts and aggregate platform data |
-| ICS | 40 | Organizer-published calendar feeds |
-| JSON | 45 | Organizer-published event feeds |
-| CTFtime | 100 | Optional discovery and compatibility source |
+Official page watch has the highest default precedence. CTFd and rCTF follow, then organizer feeds and optional CTFtime discovery.
 
 The page watcher follows only a bounded number of same-origin links from an operator-configured public URL. It rejects private destinations, embedded credentials, cross-origin crawl expansion, oversized responses, and redirect chains that leave the approved public origin. It does not solve CAPTCHAs, use authenticated browser sessions, or bypass access controls.
 
@@ -94,15 +85,7 @@ Connector tokens are referenced by environment variable name in `sources.json`. 
 
 ## Models and LiteLLM
 
-The model layer is a connector, not the application framework. Flagwatch does not depend on PydanticAI, and replacing DeepSeek does not require rewriting collection or policy logic.
-
-| Route | Use it when |
-| --- | --- |
-| OpenAI or Azure OpenAI | You want a direct OpenAI-family API |
-| Anthropic | You want a direct Anthropic Messages API |
-| DeepSeek | You want a direct OpenAI-compatible DeepSeek route |
-| LiteLLM | You want one sidecar in front of several hosted or local providers |
-| Local | You operate an OpenAI-compatible endpoint on your own network |
+The model layer is a connector. It supports OpenAI, Azure OpenAI, Anthropic, DeepSeek, LiteLLM, and local OpenAI-compatible endpoints.
 
 Model requests receive bounded public text. They do not receive browser tools, credentials, private CTF data, or write access. Returned evidence is checked against the source page before it can appear in the snapshot. See [Model providers](docs/providers.md) for environment variables and sidecar routing.
 
@@ -172,8 +155,8 @@ Browser coverage includes Axe checks, full keyboard operation, and the 320 pixel
 
 Issues and pull requests are welcome. Keep changes focused, add or update tests for behavior changes, and run the quality gate before opening a pull request. New connectors must preserve source attribution, bounded collection, and the public/private data boundary.
 
-For vulnerabilities in Flagwatch itself, use [GitHub private vulnerability reporting](https://github.com/KernelKittens/flagwatch/security/advisories/new). Do not put credentials, private CTF data, live flags, or exploit details in a public issue.
+For vulnerabilities in Flagwatch itself, use [GitHub private vulnerability reporting](https://github.com/KernelKittens/ctf-event-watch/security/advisories/new). Do not put credentials, private CTF data, live flags, or exploit details in a public issue.
 
 ## License
 
-Flagwatch is available under the [MIT License](LICENSE).
+Built by [Kernel Kittens](https://github.com/KernelKittens). Licensed under the [MIT License](LICENSE).

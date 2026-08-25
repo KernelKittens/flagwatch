@@ -313,7 +313,7 @@ window.FLAGWATCH_CONFIG = {
   defaultTimeZone: 'America/Chicago',
   footerLinks: [
     {label: 'Accessibility', url: '/accessibility'},
-    {label: 'Source policy', url: 'https://github.com/KernelKittens/flagwatch/blob/main/docs/source-policy.md'}
+    {label: 'Source policy', url: 'https://github.com/KernelKittens/ctf-event-watch/blob/main/docs/source-policy.md'}
   ]
 };
 "@
