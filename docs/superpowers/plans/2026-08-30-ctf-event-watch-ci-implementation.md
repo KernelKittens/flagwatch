@@ -147,7 +147,7 @@ Run:
 
 ```bash
 cd /opt/dev/kk-ctf-watch-ci-impl-20260830/ctf-event-watch
-/opt/dev/kk-ctf-watch-ci-impl-20260830/tools/actionlint -color never .github/workflows/ci.yml
+/opt/dev/kk-ctf-watch-ci-impl-20260830/tools/actionlint -no-color .github/workflows/ci.yml
 ! rg -n 'pull_request_target|continue-on-error|secrets:|permissions:.*write|persist-credentials:[[:space:]]*true' .github/workflows/ci.yml
 ! rg -n 'uses:[[:space:]]+[^[:space:]@]+@(main|master|v[0-9]+([.][0-9]+)*)[[:space:]]*(#.*)?$' .github/workflows/ci.yml
 rg -n 'permissions:|contents: read|persist-credentials: false|ubuntu-24.04|timeout-minutes: 20|uv sync --locked --all-groups' .github/workflows/ci.yml
@@ -300,7 +300,7 @@ Run:
 ```bash
 cd /opt/dev/kk-ctf-watch-ci-impl-20260830/ctf-event-watch
 UV=/opt/dev/kk-ctf-watch-ci-impl-20260830/tools/uv-x86_64-unknown-linux-gnu/uv
-/opt/dev/kk-ctf-watch-ci-impl-20260830/tools/actionlint -color never .github/workflows/ci.yml
+/opt/dev/kk-ctf-watch-ci-impl-20260830/tools/actionlint -no-color .github/workflows/ci.yml
 "$UV" sync --locked --all-groups
 "$UV" run ruff check .
 "$UV" run ruff format --check .
