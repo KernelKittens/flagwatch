@@ -67,7 +67,7 @@ printf '%s  %s\n' \
   "$CI_TOOLS_DIR/uv.tar.gz" | sha256sum --check -
 tar --extract --gzip --file "$CI_TOOLS_DIR/uv.tar.gz" --directory "$CI_TOOLS_DIR"
 curl --fail --location --output "$CI_TOOLS_DIR/actionlint.tar.gz" \
-  https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_x86_64.tar.gz
+  https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
 printf '%s  %s\n' \
   '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8' \
   "$CI_TOOLS_DIR/actionlint.tar.gz" | sha256sum --check -
