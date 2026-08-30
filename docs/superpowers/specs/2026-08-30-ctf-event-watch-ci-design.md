@@ -19,7 +19,7 @@ The repository also has a committed `uv.lock` but no dependency update configura
 
 This work belongs in the public Kernel Kittens repository because it changes only public build metadata and public contributor checks.
 
-The workflow must not receive CTF credentials, Discord credentials, model-provider credentials, Azure credentials, SMTP credentials, deployment credentials, private event data, team data, or other secrets. Tests use mocked HTTP transports, injected fixture fetchers, and local `127.0.0.1` servers. Setup requires public network access only for packages and the Chromium browser.
+The workflow must not receive repository or environment secrets, CTF credentials, Discord credentials, model-provider credentials, Azure credentials, SMTP credentials, deployment credentials, private event data, or team data. GitHub may issue its built-in ephemeral `GITHUB_TOKEN`, limited to `contents: read`; checkout must not persist it in Git configuration. Tests use mocked HTTP transports, injected fixture fetchers, and local `127.0.0.1` servers. Setup requires public network access only for packages and the Chromium browser.
 
 The branch stays in private remote staging through implementation and verification. Publishing a branch or pull request is a separate external action.
 
@@ -47,6 +47,7 @@ The job uses:
 - Python `3.13`, matching the repository requirement.
 - A 20-minute job timeout.
 - `contents: read` as the only GitHub token permission.
+- Checkout with `persist-credentials: false`.
 - Workflow and pull-request or ref based concurrency.
 - Cancellation of superseded runs on the same pull request or ref.
 
@@ -73,6 +74,8 @@ The job executes these commands in order:
 5. `uv run mypy src`
 6. `uv run pytest`
 
+Before accepting the workflow, `uv run pytest --collect-only -q tests/browser` must list the browser test module that imports `Axe` and its accessibility tests. This confirms the full pytest command includes the documented Playwright and Axe coverage.
+
 A failing command fails the job. The workflow does not use `continue-on-error`, fallback commands, or result suppression.
 
 The browser suite writes its two tracked dashboard screenshot paths in the ephemeral checkout. The workflow does not enforce a clean Git diff after tests because rendering differences could make that check flaky. It does not upload or commit screenshots.
@@ -81,7 +84,7 @@ The browser suite writes its two tracked dashboard screenshot paths in the ephem
 
 A GitHub pull request or push starts an isolated hosted runner. The runner checks out the public revision with a read-only token, installs the exact locked dependency set, installs Chromium, and runs the documented checks. GitHub records only the resulting check status and logs.
 
-The workflow uses `pull_request`, not `pull_request_target`. Code from a fork cannot obtain secrets or write repository content through this job.
+The workflow uses `pull_request`, not `pull_request_target`. Code from a fork cannot obtain repository or environment secrets, write repository content, or retain the ephemeral `GITHUB_TOKEN` in Git configuration through this job.
 
 ## Dependency tracking
 
@@ -131,12 +134,12 @@ This change does not:
 
 ## Rollback
 
-Both changes are repository configuration commits. Reverting the Dependabot commit stops new scheduled proposals. Reverting the workflow commit removes the new quality checks. No runtime or persisted application state needs restoration.
+Both changes are repository configuration commits. Reverting the Dependabot commit stops new scheduled proposals but does not close any pull requests it already opened; closing those requires a separate reviewed action. Reverting the workflow commit removes the new quality checks. No runtime or persisted application state needs restoration.
 
 ## Acceptance criteria
 
 - The workflow triggers only for pull requests to `main` and pushes to `main`.
-- The job has read-only contents permission and receives no secrets.
+- The job receives no repository or environment secrets, uses only a read-only ephemeral `GITHUB_TOKEN`, and does not persist checkout credentials.
 - Action references use the reviewed immutable SHAs.
 - Python 3.13 and the committed uv lockfile define the environment.
 - Ruff check, Ruff format check, mypy, pytest, Playwright, and Axe coverage run successfully.
