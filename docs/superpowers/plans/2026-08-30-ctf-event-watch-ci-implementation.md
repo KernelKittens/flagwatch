@@ -174,7 +174,7 @@ UV=/opt/dev/kk-ctf-watch-ci-impl-20260830/tools/uv-x86_64-unknown-linux-gnu/uv
 Expected:
 
 - Ruff reports all checks passed.
-- Ruff reports 94 files already formatted.
+- Ruff reports 95 files already formatted after this plan is tracked.
 - mypy reports no issues in 33 source files.
 - Browser collection lists 21 tests, including both dashboard and public-calendar Axe cases.
 - pytest reports 191 passed.
